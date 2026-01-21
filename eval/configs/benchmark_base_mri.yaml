@@ -1,0 +1,153 @@
+# Base Model Evaluation - Maori (mri)
+# Source: eval/configs/lm_eval_config_base_mri.yaml
+
+evaluation:
+  results_dir: "results/base_mri"
+  gpus: "0"
+  batch_size: auto:4
+
+models:
+  - name: "model"
+    path: "google/gemma-3-4b-pt"
+    dtype: "bfloat16"
+    trust_remote_code: true
+
+lm_eval:
+  include_path: "../eval_old/tasks"
+  log_samples: false
+
+tasks:
+  # MMLU - 5-shot
+  - name: "global_mmlu_en,global_mmlu_mri"
+    num_fewshot: 5
+    enabled: true
+
+  # XWinograd - 0-shot
+  - name: "xwinograd_mri"
+    num_fewshot: 0
+    enabled: true
+
+  - name: "winogrande"
+    num_fewshot: 0
+    enabled: true
+
+  # X-COPA - 5-shot
+  - name: "xcopa_mri"
+    num_fewshot: 5
+    enabled: true
+
+  - name: "copa"
+    num_fewshot: 5
+    enabled: true
+
+  # XNLI - 5-shot
+  - name: "xnli_mri"
+    num_fewshot: 5
+    enabled: true
+    batch_size: auto:2
+
+  - name: "xnli_en"
+    num_fewshot: 5
+    enabled: true
+
+  # Belebele - 1-shot
+  - name: "belebele_mri_Latn"
+    num_fewshot: 1
+    enabled: true
+
+  - name: "belebele_eng_Latn"
+    num_fewshot: 1
+    enabled: true
+
+  # FLORES - 1-shot
+  - name: "flores_en_mri"
+    num_fewshot: 1
+    enabled: true
+
+  - name: "flores_mri_en"
+    num_fewshot: 1
+    enabled: true
+
+  # MGSM - 8-shot
+  - name: "mgsm_direct_mri"
+    num_fewshot: 8
+    enabled: true
+
+  - name: "mgsm_direct_en"
+    num_fewshot: 8
+    enabled: true
+
+  # HellaSwag
+  - name: "hellaswag_mri"
+    num_fewshot: 0
+    enabled: true
+
+  - name: "hellaswag"
+    num_fewshot: 10
+    enabled: true
+
+  # ARC-Challenge - 25-shot
+  - name: "arc_challenge_mri"
+    num_fewshot: 25
+    enabled: true
+    batch_size: auto:1
+
+  - name: "arc_challenge"
+    num_fewshot: 25
+    enabled: true
+    batch_size: auto:2
+
+  # ARC-Easy - 0-shot
+  - name: "arc_easy_mri"
+    num_fewshot: 0
+    enabled: true
+
+  - name: "arc_easy"
+    num_fewshot: 0
+    enabled: true
+
+  # PIQA - 0-shot
+  - name: "piqa_mri"
+    num_fewshot: 0
+    enabled: true
+
+  - name: "piqa"
+    num_fewshot: 0
+    enabled: true
+
+  # XStoryCloze - 5-shot
+  - name: "xstorycloze_mri"
+    num_fewshot: 5
+    enabled: true
+    batch_size: auto:1
+
+  - name: "xstorycloze_en"
+    num_fewshot: 5
+    enabled: true
+
+  # XQuAD - 0-shot
+  - name: "xquad_mri"
+    num_fewshot: 0
+    enabled: true
+
+  - name: "xquad_en"
+    num_fewshot: 0
+    enabled: true
+
+  # TruthfulQA-Multi - 6-shot
+  - name: "truthfulqa-multi_mc1_mri,truthfulqa-multi_mc2_mri,truthfulqa-multi_gen_mri"
+    num_fewshot: 6
+    enabled: true
+
+  - name: "truthfulqa-multi_mc1_en,truthfulqa-multi_mc2_en,truthfulqa-multi_gen_en"
+    num_fewshot: 6
+    enabled: true
+
+  # GPQA Diamond - 5-shot
+  - name: "gpqa_diamond_n_shot"
+    num_fewshot: 5
+    enabled: true
+
+  # BBH Few-shot
+  - name: "bbh_fewshot"
+    enabled: true

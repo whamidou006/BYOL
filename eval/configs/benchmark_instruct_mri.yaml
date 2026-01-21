@@ -1,0 +1,215 @@
+# Instruct Model Evaluation - Maori (mri)
+# Source: eval/configs/lm_eval_config_instruct_mri.yaml
+# Key: apply_chat_template=true, 0-shot
+
+evaluation:
+  results_dir: "results/instruct_mri"
+  gpus: "0"
+  batch_size: auto:4
+  apply_chat_template: true
+
+models:
+  - name: "model"
+    path: "google/gemma-3-4b-it"
+    dtype: "bfloat16"
+    trust_remote_code: true
+
+lm_eval:
+  include_path: "../eval_old/tasks"
+  log_samples: false
+
+tasks:
+  # MMLU Gen - 0-shot
+  - name: "global_mmlu_mri_gen_0shot,global_mmlu_en_gen_0shot"
+    enabled: true
+    apply_chat_template: true
+
+  # XWinograd - 0-shot
+  - name: "xwinograd_mri"
+    num_fewshot: 0
+    enabled: true
+    apply_chat_template: true
+
+  - name: "winogrande"
+    num_fewshot: 0
+    enabled: true
+    apply_chat_template: true
+
+  # X-COPA - 0-shot
+  - name: "xcopa_mri"
+    num_fewshot: 0
+    enabled: true
+    apply_chat_template: true
+
+  - name: "copa"
+    num_fewshot: 0
+    enabled: true
+    apply_chat_template: true
+
+  # XNLI - 0-shot
+  - name: "xnli_mri"
+    num_fewshot: 0
+    enabled: true
+    apply_chat_template: true
+    batch_size: auto:2
+
+  - name: "xnli_en"
+    num_fewshot: 0
+    enabled: true
+    apply_chat_template: true
+
+  # Belebele - 0-shot
+  - name: "belebele_mri_Latn"
+    num_fewshot: 0
+    enabled: true
+    apply_chat_template: true
+
+  - name: "belebele_eng_Latn"
+    num_fewshot: 0
+    enabled: true
+    apply_chat_template: true
+
+  # FLORES - 0-shot
+  - name: "flores_en_mri"
+    num_fewshot: 0
+    enabled: true
+    apply_chat_template: true
+
+  - name: "flores_mri_en"
+    num_fewshot: 0
+    enabled: true
+    apply_chat_template: true
+
+  # MGSM - 0-shot
+  - name: "mgsm_direct_mri"
+    num_fewshot: 0
+    enabled: true
+    apply_chat_template: true
+
+  - name: "mgsm_direct_en"
+    num_fewshot: 0
+    enabled: true
+    apply_chat_template: true
+
+  # HellaSwag - 0-shot
+  - name: "hellaswag_mri"
+    num_fewshot: 0
+    enabled: true
+    apply_chat_template: true
+
+  - name: "hellaswag"
+    num_fewshot: 0
+    enabled: true
+    apply_chat_template: true
+
+  # ARC-Challenge - 0-shot
+  - name: "arc_challenge_mri"
+    num_fewshot: 0
+    enabled: true
+    apply_chat_template: true
+    batch_size: auto:2
+
+  - name: "arc_challenge"
+    num_fewshot: 0
+    enabled: true
+    apply_chat_template: true
+    batch_size: auto:2
+
+  # ARC-Easy - 0-shot
+  - name: "arc_easy_mri"
+    num_fewshot: 0
+    enabled: true
+    apply_chat_template: true
+
+  - name: "arc_easy"
+    num_fewshot: 0
+    enabled: true
+    apply_chat_template: true
+
+  # ARC-Challenge Chat
+  - name: "arc_challenge_chat_mri"
+    num_fewshot: 0
+    enabled: true
+    apply_chat_template: true
+
+  - name: "arc_challenge_chat"
+    num_fewshot: 0
+    enabled: true
+    apply_chat_template: true
+
+  # PIQA - 0-shot
+  - name: "piqa_mri"
+    num_fewshot: 0
+    enabled: true
+    apply_chat_template: true
+
+  - name: "piqa"
+    num_fewshot: 0
+    enabled: true
+    apply_chat_template: true
+
+  # XStoryCloze - 0-shot
+  - name: "xstorycloze_mri"
+    num_fewshot: 0
+    enabled: true
+    apply_chat_template: true
+    batch_size: auto:1
+
+  - name: "xstorycloze_en"
+    num_fewshot: 0
+    enabled: true
+    apply_chat_template: true
+    batch_size: auto:1
+
+  # XQuAD - 0-shot
+  - name: "xquad_mri"
+    num_fewshot: 0
+    enabled: true
+    apply_chat_template: true
+
+  - name: "xquad_en"
+    num_fewshot: 0
+    enabled: true
+    apply_chat_template: true
+
+  # TruthfulQA-Multi - 6-shot
+  - name: "truthfulqa-multi_mc1_mri,truthfulqa-multi_mc2_mri"
+    num_fewshot: 6
+    enabled: true
+    apply_chat_template: true
+
+  - name: "truthfulqa-multi_gen_mri"
+    num_fewshot: 6
+    enabled: true
+    apply_chat_template: true
+
+  - name: "truthfulqa-multi_mc1_en,truthfulqa-multi_mc2_en"
+    num_fewshot: 6
+    enabled: true
+    apply_chat_template: true
+
+  - name: "truthfulqa-multi_gen_en"
+    num_fewshot: 6
+    enabled: true
+    apply_chat_template: true
+
+  # GPQA Diamond - 0-shot
+  - name: "gpqa_diamond_zeroshot"
+    enabled: true
+    apply_chat_template: true
+
+  # BBH Zero-shot
+  - name: "bbh_zeroshot"
+    enabled: true
+    apply_chat_template: true
+
+  # IFEval
+  - name: "ifeval"
+    enabled: true
+    apply_chat_template: true
+
+  # HumanEval
+  - name: "humaneval_instruct"
+    num_fewshot: 0
+    enabled: true
+    apply_chat_template: true

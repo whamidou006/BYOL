@@ -1,0 +1,126 @@
+# Dataset Configuration File
+# Defines datasets, prompt templates, and judge evaluation templates
+
+datasets:
+  # Multi-wiki-qa dataset configuration
+  multi-wiki-qa:
+    enabled: true  # Set to true to enable multi-wiki-qa evaluation
+    name: alexandrainst/multi-wiki-qa
+    subset: ny  #mi
+    split: train
+    limit: 1000
+
+    task_type: qa
+    prompt_template: |
+      Context: {context}
+      
+      Question: {question}
+      
+      Please provide a clear and detailed answer in {language} language for the above question:
+    judge_prompt_template: |
+      You are an expert evaluator of language model outputs.
+      Task: Select the better answer for the given question in {language}.
+      
+      Evaluation criteria:
+      1) Language correctness: The answer MUST be in {language}
+      2) Instruction following: The answer should address what was asked
+      3) Factual accuracy and semantic comprehension
+      4) Grammar and fluency in {language}
+      
+      Context: {context}
+      Question: {question}
+      
+      Reference answer: {answers}
+
+      Answer (A): {completion_1}
+      
+      Answer (B): {completion_2}
+      
+      Please evaluate both answers and provide:
+      1. A comparison explaining which answer is better and why in English
+      2. Your preference: Answer (A) or Answer (B)
+      3. A rating for each answer based on the evaluation criteria on a scale of 0-5
+
+      Format your response as:
+      Comparison: <your comparison>
+      Preferred: <"Answer (A)" or "Answer (B)">
+      Rating_A: [0-5]
+      Rating_B: [0-5]
+
+
+
+  aya:
+    enabled: false  # Set to false to disable Aya evaluation
+    name: CohereForAI/aya_evaluation_suite
+    subset: dolly_machine_translated
+    split: test
+    limit: 100
+    languages_filter:
+      - swh
+    task_type: qa
+    prompt_template: |
+      {instruction}
+      Please provide a clear and detailed answer in {language} language for the above question:
+    judge_prompt_template: |
+      You are an expert evaluator of language model outputs.
+      Task: Select the better answer for the given instruction in {language}.
+      
+      Evaluation criteria:
+      1) Language correctness: The answer MUST be in {language}
+      2) Instruction following: The answer should address what was asked
+      3) Factual accuracy and semantic comprehension
+      4) Grammar and fluency in {language}
+      
+      Instruction: {instruction}
+      
+      Answer (A): {completion_1}
+      
+      Answer (B): {completion_2}
+      
+      Please evaluate both answers and provide:
+      1. A comparison explaining which answer is better and why
+      2. Your preference: Answer (A), Answer (B), or TIE
+      3. A rating for each answer on a scale of 0-5
+      
+      Format your response as:
+      Comparison: <your comparison>
+      Preferred: <"Answer (A)" or "Answer (B)" or "TIE">
+      Rating_A: [0-5]
+      Rating_B: [0-5]
+    
+  # XLSum dataset configuration
+  xlsum:
+    enabled: false  # Set to true to enable XLSum evaluation
+    dataset_name: csebuetnlp/xlsum
+    languages: ["swahili"] #, "english", "arabic", "french", "yoruba", "hausa", "somali"
+    split: test
+    num_samples: 10
+    task_type: summarization
+    prompt_template: |
+      Title: {title}
+      Text: {text}
+      
+      Please provide a concise summary of the above text in {language} language:
+    judge_prompt_template: |
+      You are an expert evaluator for text summarization. Please evaluate the following two summaries based on the original text and reference summary.
+      
+      Title: {title}
+      
+      Original Text: {text}
+      
+      Summary A: {summary_a}
+      
+      Summary B: {summary_b}
+      
+      Please evaluate both summaries based on:
+      1. Language correctness: The answer MUST be in {language} language 
+      2. Accuracy (factual correctness)
+      3. Completeness (coverage of key points)
+      4. Conciseness (brevity without losing information)
+      5. Fluency (readability and coherence)
+      
+      Response format:
+      Comparison: [Detailed comparison in English of Summary A and Summary B]
+      Preferred: [Answer (A)/Answer (B)/Tie]
+      Rating_A: [0-5]
+      Rating_B: [0-5]

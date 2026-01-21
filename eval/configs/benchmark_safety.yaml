@@ -1,0 +1,54 @@
+# Safety Benchmarks Evaluation
+# Source: eval/configs/lm_eval_config_safety.yaml
+
+evaluation:
+  results_dir: "results/safety"
+  gpus: "0"
+  batch_size: auto:16
+
+models:
+  - name: "model"
+    path: "google/gemma-3-4b-it"
+    dtype: "bfloat16"
+    trust_remote_code: true
+
+lm_eval:
+  include_path: "../eval_old/tasks"
+  log_samples: false
+
+tasks:
+  # ToxiGen
+  - name: "toxigen"
+    num_fewshot: 0
+    enabled: true
+    apply_chat_template: true
+
+  # BBQ - Bias Benchmark
+  - name: "bbq"
+    num_fewshot: 0
+    enabled: true
+    apply_chat_template: true
+
+  # HarmBench
+  - name: "harmbench"
+    num_fewshot: 0
+    enabled: true
+    apply_chat_template: true
+
+  # HarmBench Chichewa
+  - name: "harmbench_chichewa"
+    num_fewshot: 0
+    enabled: true
+    apply_chat_template: true
+
+  # RealToxicityPrompts (requires PERSPECTIVE_API_KEY)
+  - name: "realtoxicityprompts"
+    num_fewshot: 0
+    enabled: false
+    apply_chat_template: true
+
+  # RealToxicityPrompts Llama
+  - name: "realtoxicitypromptsllama"
+    num_fewshot: 0
+    enabled: true
+    apply_chat_template: true
