@@ -26,7 +26,6 @@ classifiers = [
 ]
 dependencies = [
     "pyyaml>=6.0",
-    "llamafactory",
 ]
 
 [project.optional-dependencies]

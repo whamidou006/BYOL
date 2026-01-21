@@ -3,7 +3,24 @@
 A clean Python wrapper for LlamaFactory training with best practices.
 Supports CPT (Continual Pre-Training), SFT (Supervised Fine-Tuning), and DPO.
 
+## Prerequisites
+
+### Install LlamaFactory
+
+LlamaFactory must be installed from source:
+
+```bash
+git clone --depth 1 https://github.com/hiyouga/LlamaFactory.git
+cd LlamaFactory
+pip install -e .
+pip install -r requirements/metrics.txt
+```
+
+See [LlamaFactory GitHub](https://github.com/hiyouga/LLaMAFactory) for more details.
+
 ## Installation
+
+After installing LlamaFactory:
 
 ```bash
 cd train
