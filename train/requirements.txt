@@ -1,0 +1,11 @@
+# LlamaFactory - installed from GitHub
+llamafactory @ git+https://github.com/hiyouga/LlamaFactory.git
+
+# LlamaFactory metrics dependencies
+rouge-score
+nltk
+jieba
+sacrebleu
+
+# BYOL Train dependencies
+pyyaml>=6.0
