@@ -113,7 +113,7 @@ Options:
 ## Project Structure
 
 ```
-eval_v2/
+eval/
 ├── byol_eval/
 │   ├── __init__.py      # Package exports
 │   ├── cli.py           # CLI entry point

@@ -95,6 +95,7 @@ class TrainConfig:
     eval_dataset: Optional[str] = None
     cutoff_len: int = 4096
     streaming: bool = False
+    packing: Optional[bool] = None  # None = auto (True for pt, False for sft/dpo)
     
     # Training hyperparameters
     per_device_train_batch_size: int = 2
@@ -199,6 +200,9 @@ class TrainConfig:
         """Convert to LlamaFactory YAML format."""
         num_gpus = len(gpus.split(","))
         
+        # Determine packing: explicit setting or auto based on stage
+        packing = self.packing if self.packing is not None else (self.stage == "pt")
+        
         config = {
             # Model
             "model_name_or_path": self.model_name_or_path,
@@ -208,7 +212,7 @@ class TrainConfig:
             # Stage
             "stage": self.stage,
             "train_on_prompt": self.stage == "dpo",
-            "packing": self.stage == "pt",
+            "packing": packing,
             
             # Dataset
             "dataset": self.dataset,
@@ -281,7 +285,6 @@ class TrainConfig:
         
         # SFT-specific
         if self.stage == "sft":
-            config["packing"] = False
             config["remove_unused_columns"] = False
         
         # LoRA config
