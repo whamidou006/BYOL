@@ -1,306 +1,380 @@
-"""Configuration classes for BYOL Training Framework."""
+"""Configuration classes for BYOL Training Framework.
+
+This module defines the configuration dataclasses used throughout the training
+pipeline, including LoRA, dataset mixing, and main training configurations.
+"""
 
 from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import yaml
 
+from .constants import (
+    DEFAULT_BATCH_SIZE,
+    DEFAULT_CUTOFF_LEN,
+    DEFAULT_EPOCHS,
+    DEFAULT_GRADIENT_ACCUMULATION_STEPS,
+    DEFAULT_LEARNING_RATE,
+    DEFAULT_LORA_ALPHA,
+    DEFAULT_LORA_DROPOUT,
+    DEFAULT_LORA_RANK,
+    DEFAULT_LORA_TARGET_MODULES,
+    DEFAULT_MAX_GRAD_NORM,
+    DEFAULT_WARMUP_RATIO,
+    DEFAULT_WEIGHT_DECAY,
+    SUPPORTED_DTYPES,
+    SUPPORTED_MIX_STRATEGIES,
+    SUPPORTED_STAGES,
+)
 
-def is_power_of_2(n: int) -> bool:
-    """Check if n is a power of 2."""
+
+def _is_power_of_2(n: int) -> bool:
+    """Check if a number is a power of 2.
+
+    Args:
+        n: The number to check.
+
+    Returns:
+        True if n is a power of 2, False otherwise.
+    """
     return n > 0 and (n & (n - 1)) == 0
 
 
-def next_power_of_2(n: int) -> int:
-    """Find next power of 2 >= n."""
-    result = 1
-    while result < n:
-        result *= 2
-    return result
+def _next_power_of_2(n: int) -> int:
+    """Find the next power of 2 greater than or equal to n.
+
+    Args:
+        n: The input number.
+
+    Returns:
+        The smallest power of 2 >= n.
+    """
+    if n <= 0:
+        return 1
+    n -= 1
+    n |= n >> 1
+    n |= n >> 2
+    n |= n >> 4
+    n |= n >> 8
+    n |= n >> 16
+    return n + 1
 
 
 @dataclass
 class LoraConfig:
-    """LoRA fine-tuning configuration."""
-    enabled: bool = False
-    rank: int = 64
-    alpha: int = 128  # Usually 2x rank
-    dropout: float = 0.05
-    target: str = "all"
-    
+    """Configuration for LoRA (Low-Rank Adaptation) fine-tuning.
+
+    LoRA enables efficient fine-tuning by adding trainable low-rank matrices
+    to transformer layers instead of updating all weights.
+
+    Attributes:
+        rank: Rank of the low-rank matrices (higher = more capacity).
+        alpha: Scaling factor for LoRA updates (typically 2x rank).
+        dropout: Dropout probability for regularization.
+        target_modules: List of module names to apply LoRA to.
+    """
+
+    rank: int = DEFAULT_LORA_RANK
+    alpha: int = DEFAULT_LORA_ALPHA
+    dropout: float = DEFAULT_LORA_DROPOUT
+    target_modules: List[str] = field(default_factory=lambda: list(DEFAULT_LORA_TARGET_MODULES))
+
     def __post_init__(self) -> None:
-        if self.enabled:
-            if self.rank <= 0:
-                raise ValueError(f"LoRA rank must be positive, got {self.rank}")
-            if self.alpha is None:
-                self.alpha = self.rank * 2
-    
+        """Validate LoRA configuration after initialization."""
+        if self.rank <= 0:
+            raise ValueError(f"LoRA rank must be positive, got {self.rank}")
+        if self.alpha <= 0:
+            raise ValueError(f"LoRA alpha must be positive, got {self.alpha}")
+        if not 0.0 <= self.dropout < 1.0:
+            raise ValueError(f"LoRA dropout must be in [0, 1), got {self.dropout}")
+        if not self.target_modules:
+            raise ValueError("LoRA target_modules cannot be empty")
+
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to LlamaFactory config format."""
-        if not self.enabled:
-            return {"finetuning_type": "full"}
+        """Convert to dictionary for LlamaFactory config.
+
+        Returns:
+            Dictionary with LoRA parameters.
+        """
         return {
-            "finetuning_type": "lora",
             "lora_rank": self.rank,
             "lora_alpha": self.alpha,
             "lora_dropout": self.dropout,
-            "lora_target": self.target,
+            "lora_target": ",".join(self.target_modules),
         }
 
 
 @dataclass
 class DatasetMixConfig:
-    """Dataset mixing configuration."""
-    strategy: Optional[Literal["concat", "interleave_under", "interleave_over"]] = None
-    probs: Optional[List[float]] = None
-    seed: Optional[int] = None
-    
+    """Configuration for dataset mixing strategies.
+
+    Supports combining multiple datasets with different strategies:
+    - concat: Simple concatenation
+    - interleave_under: Under-sampling to smallest dataset
+    - interleave_over: Over-sampling to largest dataset
+
+    Attributes:
+        datasets: List of dataset names to mix.
+        strategy: Mixing strategy to use.
+        probabilities: Optional sampling probabilities for each dataset.
+    """
+
+    datasets: List[str] = field(default_factory=list)
+    strategy: str = "concat"
+    probabilities: Optional[List[float]] = None
+
     def __post_init__(self) -> None:
-        if self.probs is not None:
-            if not all(0 <= p <= 1 for p in self.probs):
-                raise ValueError("All probabilities must be between 0 and 1")
-            if abs(sum(self.probs) - 1.0) > 0.01:
-                raise ValueError(f"Probabilities must sum to 1.0, got {sum(self.probs)}")
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to LlamaFactory config format."""
-        result = {}
-        if self.strategy:
-            result["mix_strategy"] = self.strategy
-        if self.probs:
-            result["interleave_probs"] = self.probs
-        if self.seed is not None:
-            result["seed"] = self.seed
-        return result
+        """Validate dataset mix configuration."""
+        if self.strategy not in SUPPORTED_MIX_STRATEGIES:
+            raise ValueError(
+                f"Invalid mix strategy: {self.strategy}. "
+                f"Must be one of {SUPPORTED_MIX_STRATEGIES}"
+            )
+        if self.probabilities is not None:
+            if len(self.probabilities) != len(self.datasets):
+                raise ValueError(
+                    f"Probabilities length ({len(self.probabilities)}) must match "
+                    f"datasets length ({len(self.datasets)})"
+                )
+            if abs(sum(self.probabilities) - 1.0) > 1e-6:
+                raise ValueError(f"Probabilities must sum to 1.0, got {sum(self.probabilities)}")
 
 
 @dataclass
 class TrainConfig:
-    """Main training configuration."""
-    # Task type
-    stage: Literal["pt", "sft", "dpo"] = "pt"
-    
+    """Main training configuration for BYOL.
+
+    This is the primary configuration class that aggregates all training
+    parameters including model, data, optimization, and LoRA settings.
+
+    Attributes:
+        model_name_or_path: HuggingFace model ID or local path.
+        stage: Training stage (cpt, sft, dpo).
+        dataset: Dataset name or comma-separated list.
+        output_dir: Base directory for outputs.
+        epochs: Number of training epochs.
+        batch_size: Per-device training batch size.
+        gradient_accumulation_steps: Steps to accumulate before update.
+        learning_rate: Initial learning rate.
+        warmup_ratio: Fraction of steps for warmup.
+        max_grad_norm: Maximum gradient norm for clipping.
+        weight_decay: Weight decay coefficient.
+        cutoff_len: Maximum sequence length.
+        template: Chat template name.
+        gpus: Comma-separated GPU device IDs.
+        bf16: Whether to use bfloat16 precision.
+        lora: Optional LoRA configuration.
+        dataset_mix: Optional dataset mixing configuration.
+        wandb_project: W&B project name for logging.
+    """
+
     # Model
-    model_name_or_path: str = "google/gemma-3-4b-pt"
-    template: str = "gemma"
-    trust_remote_code: bool = True
-    
-    # Dataset
+    model_name_or_path: str = ""
+    stage: str = "sft"
     dataset: str = ""
-    eval_dataset: Optional[str] = None
-    cutoff_len: int = 4096
-    streaming: bool = False
-    packing: Optional[bool] = None  # None = auto (True for pt, False for sft/dpo)
-    
-    # Training hyperparameters
-    per_device_train_batch_size: int = 2
-    per_device_eval_batch_size: int = 2
-    gradient_accumulation_steps: int = 64
-    learning_rate: float = 1e-5
-    lr_scheduler_type: str = "cosine_with_min_lr"
-    warmup_ratio: float = 0.03
-    num_train_epochs: int = 4
-    
-    # Output
     output_dir: str = "outputs"
-    run_name: str = ""
-    
-    # Precision
+
+    # Training
+    epochs: int = DEFAULT_EPOCHS
+    batch_size: int = DEFAULT_BATCH_SIZE
+    gradient_accumulation_steps: int = DEFAULT_GRADIENT_ACCUMULATION_STEPS
+    learning_rate: float = DEFAULT_LEARNING_RATE
+    warmup_ratio: float = DEFAULT_WARMUP_RATIO
+    max_grad_norm: float = DEFAULT_MAX_GRAD_NORM
+    weight_decay: float = DEFAULT_WEIGHT_DECAY
+
+    # Data
+    cutoff_len: int = DEFAULT_CUTOFF_LEN
+    template: str = "gemma"
+
+    # Hardware
+    gpus: str = "0"
     bf16: bool = True
-    tf32: bool = True
-    gradient_checkpointing: bool = True
-    
-    # Logging and saving
-    logging_steps: int = 5
-    eval_steps: int = 100
-    save_steps: int = 500
-    save_total_limit: int = 10
-    
-    # Training control
-    do_train: bool = True
-    do_eval: bool = True
-    resume_from_checkpoint: Optional[str] = None
-    
-    # DPO-specific
-    dpo_beta: float = 0.1
-    dpo_loss: str = "sigmoid"
-    
-    # Knowledge distillation
-    enable_kd: bool = False
-    
-    # Reporting
-    report_to: str = "wandb"
-    
-    # LoRA and dataset mixing (nested configs)
-    lora: LoraConfig = field(default_factory=LoraConfig)
-    dataset_mix: DatasetMixConfig = field(default_factory=DatasetMixConfig)
-    
+
+    # Optional components
+    lora: Optional[LoraConfig] = None
+    dataset_mix: Optional[DatasetMixConfig] = None
+
+    # Logging
+    wandb_project: Optional[str] = None
+
     def __post_init__(self) -> None:
-        if not self.dataset:
-            raise ValueError("Dataset must be specified")
-        
-        # Validate batch sizes
-        if not is_power_of_2(self.per_device_train_batch_size):
-            suggested = next_power_of_2(self.per_device_train_batch_size)
-            print(f"⚠️  per_device_train_batch_size ({self.per_device_train_batch_size}) "
-                  f"is not power of 2. Suggested: {suggested}")
-    
+        """Validate training configuration."""
+        if not self.model_name_or_path:
+            raise ValueError("model_name_or_path is required")
+        if self.stage not in SUPPORTED_STAGES:
+            raise ValueError(
+                f"Invalid stage: {self.stage}. Must be one of {SUPPORTED_STAGES}"
+            )
+        if self.epochs <= 0:
+            raise ValueError(f"epochs must be positive, got {self.epochs}")
+        if self.batch_size <= 0:
+            raise ValueError(f"batch_size must be positive, got {self.batch_size}")
+        if self.learning_rate <= 0:
+            raise ValueError(f"learning_rate must be positive, got {self.learning_rate}")
+
     @classmethod
-    def from_yaml(cls, path: Union[str, Path]) -> TrainConfig:
-        """Load configuration from YAML file."""
+    def from_yaml(cls, path: Union[str, Path]) -> "TrainConfig":
+        """Load configuration from YAML file.
+
+        Args:
+            path: Path to the YAML configuration file.
+
+        Returns:
+            TrainConfig instance.
+
+        Raises:
+            FileNotFoundError: If the config file doesn't exist.
+            yaml.YAMLError: If the file is not valid YAML.
+        """
         path = Path(path).expanduser().resolve()
         if not path.exists():
             raise FileNotFoundError(f"Config file not found: {path}")
         with open(path) as f:
             data = yaml.safe_load(f)
         return cls.from_dict(data)
-    
+
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> TrainConfig:
-        """Create config from dictionary."""
-        # Extract nested configs
-        lora_data = data.pop("lora", {})
-        mix_data = data.pop("dataset_mix", {})
-        
-        # Handle legacy format
-        if "finetuning_type" in data and data["finetuning_type"] == "lora":
-            lora_data["enabled"] = True
-            lora_data["rank"] = data.pop("lora_rank", 64)
-            lora_data["alpha"] = data.pop("lora_alpha", 128)
-            lora_data["dropout"] = data.pop("lora_dropout", 0.05)
-            lora_data["target"] = data.pop("lora_target", "all")
-            data.pop("finetuning_type", None)
-        
-        if "mix_strategy" in data:
-            mix_data["strategy"] = data.pop("mix_strategy")
-        if "interleave_probs" in data:
-            mix_data["probs"] = data.pop("interleave_probs")
-        
-        # Map stage names
-        stage_map = {"pt": "pt", "cpt": "pt", "sft": "sft", "dpo": "dpo"}
-        if "stage" in data:
-            data["stage"] = stage_map.get(data["stage"], data["stage"])
-        
-        # Filter only known fields
-        known_fields = {f.name for f in cls.__dataclass_fields__.values()}
-        filtered_data = {k: v for k, v in data.items() if k in known_fields}
-        
+    def from_dict(cls, data: Dict[str, Any]) -> "TrainConfig":
+        """Create configuration from dictionary.
+
+        Args:
+            data: Dictionary with configuration values.
+
+        Returns:
+            TrainConfig instance.
+        """
+        lora_data = data.get("lora")
+        lora = LoraConfig(**lora_data) if lora_data else None
+
+        mix_data = data.get("dataset_mix")
+        dataset_mix = DatasetMixConfig(**mix_data) if mix_data else None
+
         return cls(
-            **filtered_data,
-            lora=LoraConfig(**lora_data) if lora_data else LoraConfig(),
-            dataset_mix=DatasetMixConfig(**mix_data) if mix_data else DatasetMixConfig(),
+            model_name_or_path=data.get("model_name_or_path", ""),
+            stage=data.get("stage", "sft"),
+            dataset=data.get("dataset", ""),
+            output_dir=data.get("output_dir", "outputs"),
+            epochs=data.get("epochs", DEFAULT_EPOCHS),
+            batch_size=data.get("batch_size", DEFAULT_BATCH_SIZE),
+            gradient_accumulation_steps=data.get(
+                "gradient_accumulation_steps", DEFAULT_GRADIENT_ACCUMULATION_STEPS
+            ),
+            learning_rate=data.get("learning_rate", DEFAULT_LEARNING_RATE),
+            warmup_ratio=data.get("warmup_ratio", DEFAULT_WARMUP_RATIO),
+            max_grad_norm=data.get("max_grad_norm", DEFAULT_MAX_GRAD_NORM),
+            weight_decay=data.get("weight_decay", DEFAULT_WEIGHT_DECAY),
+            cutoff_len=data.get("cutoff_len", DEFAULT_CUTOFF_LEN),
+            template=data.get("template", "gemma"),
+            gpus=str(data.get("gpus", "0")),
+            bf16=data.get("bf16", True),
+            lora=lora,
+            dataset_mix=dataset_mix,
+            wandb_project=data.get("wandb_project"),
         )
-    
-    def to_llamafactory_config(self, gpus: str = "0") -> Dict[str, Any]:
-        """Convert to LlamaFactory YAML format."""
-        num_gpus = len(gpus.split(","))
-        
-        # Determine packing: explicit setting or auto based on stage
-        packing = self.packing if self.packing is not None else (self.stage == "pt")
-        
-        config = {
-            # Model
+
+    def to_yaml(self, path: Union[str, Path]) -> None:
+        """Save configuration to YAML file.
+
+        Args:
+            path: Path to save the YAML file.
+        """
+        data = self.to_dict()
+        with open(path, "w") as f:
+            yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary representation.
+
+        Returns:
+            Dictionary with all configuration values.
+        """
+        data = {
             "model_name_or_path": self.model_name_or_path,
-            "template": self.template,
-            "trust_remote_code": self.trust_remote_code,
-            
-            # Stage
             "stage": self.stage,
-            "train_on_prompt": self.stage == "dpo",
-            "packing": packing,
-            
-            # Dataset
             "dataset": self.dataset,
-            "cutoff_len": self.cutoff_len,
-            
-            # Training
-            "per_device_train_batch_size": self.per_device_train_batch_size,
-            "per_device_eval_batch_size": self.per_device_eval_batch_size,
+            "output_dir": self.output_dir,
+            "epochs": self.epochs,
+            "batch_size": self.batch_size,
             "gradient_accumulation_steps": self.gradient_accumulation_steps,
             "learning_rate": self.learning_rate,
-            "lr_scheduler_type": self.lr_scheduler_type,
             "warmup_ratio": self.warmup_ratio,
-            "num_train_epochs": self.num_train_epochs,
-            
-            # Output
-            "output_dir": self.output_dir,
-            "run_name": self.run_name,
-            
-            # Precision
+            "max_grad_norm": self.max_grad_norm,
+            "weight_decay": self.weight_decay,
+            "cutoff_len": self.cutoff_len,
+            "template": self.template,
+            "gpus": self.gpus,
             "bf16": self.bf16,
-            "tf32": self.tf32,
-            "gradient_checkpointing": self.gradient_checkpointing,
-            
-            # Logging
-            "plot_loss": True,
-            "eval_strategy": "steps",
-            "save_strategy": "steps",
-            "logging_steps": self.logging_steps,
-            "eval_steps": self.eval_steps,
-            "save_steps": self.save_steps,
-            "save_total_limit": self.save_total_limit,
-            "logging_first_step": True,
-            "logging_nan_inf_filter": False,
-            
-            # Model selection
-            "load_best_model_at_end": True,
-            "metric_for_best_model": "loss" if self.stage == "pt" else "eval_loss",
-            "greater_is_better": False,
-            
-            # Control
-            "do_train": self.do_train,
-            "do_eval": self.do_eval,
-            "overwrite_output_dir": True,
-            
-            # Other
-            "dataloader_num_workers": 4,
-            "dataloader_pin_memory": True,
-            "preprocessing_num_workers": 4,
-            
-            # Reporting
-            "report_to": self.report_to,
+            "wandb_project": self.wandb_project,
         }
-        
-        # Optional fields
-        if self.eval_dataset:
-            config["eval_dataset"] = self.eval_dataset
-        if self.streaming:
-            config["streaming"] = True
-        if self.resume_from_checkpoint:
-            config["resume_from_checkpoint"] = self.resume_from_checkpoint
-        if self.enable_kd:
-            config["enable_kd"] = True
-        
-        # DPO-specific
-        if self.stage == "dpo":
-            config["dpo_beta"] = self.dpo_beta
-            config["dpo_loss"] = self.dpo_loss
-            config["dpo_ftx"] = 0.0
-            config["remove_unused_columns"] = False
-        
-        # SFT-specific
-        if self.stage == "sft":
-            config["remove_unused_columns"] = False
-        
-        # LoRA config
-        config.update(self.lora.to_dict())
-        
-        # Dataset mixing
-        config.update(self.dataset_mix.to_dict())
-        
-        # LR scheduler kwargs
-        if self.lr_scheduler_type == "cosine_with_min_lr":
-            config["lr_scheduler_kwargs"] = {"min_lr_rate": 0.1}
-        
+        if self.lora:
+            data["lora"] = {
+                "rank": self.lora.rank,
+                "alpha": self.lora.alpha,
+                "dropout": self.lora.dropout,
+                "target_modules": self.lora.target_modules,
+            }
+        if self.dataset_mix:
+            data["dataset_mix"] = {
+                "datasets": self.dataset_mix.datasets,
+                "strategy": self.dataset_mix.strategy,
+                "probabilities": self.dataset_mix.probabilities,
+            }
+        return data
+
+    def to_llamafactory(self, output_dir: str) -> Dict[str, Any]:
+        """Convert to LlamaFactory configuration format.
+
+        Args:
+            output_dir: Output directory for this training run.
+
+        Returns:
+            Dictionary in LlamaFactory config format.
+        """
+        config: Dict[str, Any] = {
+            "model_name_or_path": self.model_name_or_path,
+            "stage": "pt" if self.stage == "cpt" else self.stage,
+            "do_train": True,
+            "dataset": self.dataset,
+            "template": self.template,
+            "output_dir": output_dir,
+            "num_train_epochs": self.epochs,
+            "per_device_train_batch_size": self.batch_size,
+            "gradient_accumulation_steps": self.gradient_accumulation_steps,
+            "learning_rate": self.learning_rate,
+            "warmup_ratio": self.warmup_ratio,
+            "max_grad_norm": self.max_grad_norm,
+            "weight_decay": self.weight_decay,
+            "cutoff_len": self.cutoff_len,
+            "bf16": self.bf16,
+            "logging_steps": 10,
+            "save_steps": 500,
+            "save_total_limit": 3,
+        }
+
+        # Add LoRA config
+        if self.lora:
+            config["finetuning_type"] = "lora"
+            config.update(self.lora.to_dict())
+        else:
+            config["finetuning_type"] = "full"
+
+        # Add dataset mixing
+        if self.dataset_mix and self.dataset_mix.datasets:
+            config["dataset"] = ",".join(self.dataset_mix.datasets)
+            config["mix_strategy"] = self.dataset_mix.strategy
+            if self.dataset_mix.probabilities:
+                config["dataset_probs"] = ",".join(
+                    str(p) for p in self.dataset_mix.probabilities
+                )
+
+        # Add W&B logging
+        if self.wandb_project:
+            config["report_to"] = "wandb"
+            config["run_name"] = f"{Path(self.model_name_or_path).name}_{self.stage}"
+
         return config
-    
-    def to_yaml(self, path: Union[str, Path]) -> None:
-        """Save configuration to YAML file."""
-        config = self.to_llamafactory_config()
-        with open(path, "w") as f:
-            yaml.dump(config, f, default_flow_style=False, sort_keys=False)

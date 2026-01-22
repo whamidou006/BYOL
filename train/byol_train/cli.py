@@ -1,4 +1,13 @@
-"""CLI for BYOL Training Framework."""
+"""Command-line interface for BYOL Training Framework.
+
+This module provides the CLI entry point for running training jobs.
+Supports CPT, SFT, DPO stages with LoRA fine-tuning.
+
+Usage:
+    byol-train cpt --config config.yaml
+    byol-train sft --model meta-llama/Llama-3-8B --dataset alpaca
+    byol-train merge --base-model ./model --adapter ./lora --output ./merged
+"""
 
 from __future__ import annotations
 
@@ -6,122 +15,273 @@ import argparse
 import logging
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
-import yaml
-
-from .config import TrainConfig
+from .config import LoraConfig, TrainConfig
+from .constants import (
+    DEFAULT_BATCH_SIZE,
+    DEFAULT_CUTOFF_LEN,
+    DEFAULT_EPOCHS,
+    DEFAULT_GRADIENT_ACCUMULATION_STEPS,
+    DEFAULT_LEARNING_RATE,
+    DEFAULT_LORA_ALPHA,
+    DEFAULT_LORA_DROPOUT,
+    DEFAULT_LORA_RANK,
+    SUPPORTED_STAGES,
+)
 from .runner import TrainingRunner
-from .merge import merge_lora
 
-# Configure logging
+# Configure logging once at CLI entry
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    datefmt="%H:%M:%S",
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger("byol-train")
 
 
-def parse_overrides(override_args: List[str]) -> Dict:
-    """Parse override arguments like --model_name=X or --key=value."""
-    overrides = {}
-    for arg in override_args:
-        if arg.startswith("--"):
-            arg = arg[2:]
-        if "=" in arg:
-            key, value = arg.split("=", 1)
-            # Try to parse as number or bool
-            if value.lower() == "true":
-                value = True
-            elif value.lower() == "false":
-                value = False
-            else:
-                try:
-                    value = int(value)
-                except ValueError:
-                    try:
-                        value = float(value)
-                    except ValueError:
-                        pass
-            overrides[key] = value
-    return overrides
+def parse_overrides(overrides: Optional[List[str]]) -> Dict[str, Any]:
+    """Parse key=value override arguments.
+
+    Args:
+        overrides: List of "key=value" strings from CLI.
+
+    Returns:
+        Dictionary of parsed overrides with appropriate types.
+
+    Example:
+        >>> parse_overrides(["epochs=10", "learning_rate=1e-5"])
+        {'epochs': 10, 'learning_rate': 1e-05}
+    """
+    if not overrides:
+        return {}
+
+    result: Dict[str, Any] = {}
+    for item in overrides:
+        if "=" not in item:
+            logger.warning(f"Ignoring invalid override (no '='): {item}")
+            continue
+
+        key, value = item.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+
+        # Type inference
+        if value.lower() in ("true", "false"):
+            result[key] = value.lower() == "true"
+        elif value.isdigit():
+            result[key] = int(value)
+        else:
+            try:
+                result[key] = float(value)
+            except ValueError:
+                result[key] = value
+
+    return result
 
 
 def create_parser() -> argparse.ArgumentParser:
-    """Create argument parser."""
+    """Create the argument parser with all subcommands.
+
+    Returns:
+        Configured ArgumentParser instance.
+    """
     parser = argparse.ArgumentParser(
         prog="byol-train",
-        description="BYOL Training Framework - LlamaFactory Wrapper",
+        description="BYOL Training Framework - LlamaFactory wrapper with best practices",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Run CPT training
-  byol-train cpt --config configs/cpt.yaml --gpus 0,1
+  # Train with config file
+  byol-train sft --config train_config.yaml
 
-  # Run SFT training with LoRA
-  byol-train sft --config configs/sft.yaml --lora --lora-rank 64
-
-  # Run DPO training  
-  byol-train dpo --config configs/dpo.yaml --gpus 0,1,2,3
+  # Train with CLI arguments
+  byol-train sft --model meta-llama/Llama-3-8B --dataset alpaca --epochs 3
 
   # Merge LoRA adapter
-  byol-train merge --base google/gemma-3-4b-pt --adapter outputs/lora/ --output merged/
+  byol-train merge --base-model ./model --adapter ./lora --output ./merged
+        """,
+    )
+    subparsers = parser.add_subparsers(dest="stage", help="Training stage")
 
-  # Override config values
-  byol-train sft --config configs/sft.yaml --model_name_or_path=google/gemma-2-2b
-""",
+    # Common arguments for training stages
+    def add_common_args(subparser: argparse.ArgumentParser) -> None:
+        """Add common training arguments to a subparser."""
+        # Config file
+        subparser.add_argument(
+            "--config", "-c",
+            type=str,
+            help="Path to YAML configuration file",
+        )
+
+        # Model arguments
+        model_group = subparser.add_argument_group("Model")
+        model_group.add_argument(
+            "--model", "-m",
+            type=str,
+            help="HuggingFace model ID or local path",
+        )
+        model_group.add_argument(
+            "--name", "-n",
+            type=str,
+            help="Run name for logging and output directory",
+        )
+        model_group.add_argument(
+            "--template",
+            type=str,
+            default="gemma",
+            help="Chat template name (default: gemma)",
+        )
+
+        # Dataset arguments
+        data_group = subparser.add_argument_group("Dataset")
+        data_group.add_argument(
+            "--dataset", "-d",
+            type=str,
+            help="Dataset name or comma-separated list",
+        )
+        data_group.add_argument(
+            "--cutoff-len",
+            type=int,
+            default=DEFAULT_CUTOFF_LEN,
+            help=f"Maximum sequence length (default: {DEFAULT_CUTOFF_LEN})",
+        )
+
+        # Training arguments
+        train_group = subparser.add_argument_group("Training")
+        train_group.add_argument(
+            "--epochs", "-e",
+            type=int,
+            default=DEFAULT_EPOCHS,
+            help=f"Number of training epochs (default: {DEFAULT_EPOCHS})",
+        )
+        train_group.add_argument(
+            "--batch-size", "-b",
+            type=int,
+            default=DEFAULT_BATCH_SIZE,
+            help=f"Per-device batch size (default: {DEFAULT_BATCH_SIZE})",
+        )
+        train_group.add_argument(
+            "--grad-accum",
+            type=int,
+            default=DEFAULT_GRADIENT_ACCUMULATION_STEPS,
+            help=f"Gradient accumulation steps (default: {DEFAULT_GRADIENT_ACCUMULATION_STEPS})",
+        )
+        train_group.add_argument(
+            "--lr", "--learning-rate",
+            type=float,
+            default=DEFAULT_LEARNING_RATE,
+            dest="learning_rate",
+            help=f"Learning rate (default: {DEFAULT_LEARNING_RATE})",
+        )
+
+        # LoRA arguments
+        lora_group = subparser.add_argument_group("LoRA")
+        lora_group.add_argument(
+            "--lora",
+            action="store_true",
+            help="Enable LoRA fine-tuning",
+        )
+        lora_group.add_argument(
+            "--lora-rank",
+            type=int,
+            default=DEFAULT_LORA_RANK,
+            help=f"LoRA rank (default: {DEFAULT_LORA_RANK})",
+        )
+        lora_group.add_argument(
+            "--lora-alpha",
+            type=int,
+            default=DEFAULT_LORA_ALPHA,
+            help=f"LoRA alpha (default: {DEFAULT_LORA_ALPHA})",
+        )
+        lora_group.add_argument(
+            "--lora-dropout",
+            type=float,
+            default=DEFAULT_LORA_DROPOUT,
+            help=f"LoRA dropout (default: {DEFAULT_LORA_DROPOUT})",
+        )
+
+        # Hardware arguments
+        hw_group = subparser.add_argument_group("Hardware")
+        hw_group.add_argument(
+            "--gpus", "-g",
+            type=str,
+            default="0",
+            help="Comma-separated GPU device IDs (default: 0)",
+        )
+        hw_group.add_argument(
+            "--bf16/--no-bf16",
+            dest="bf16",
+            action=argparse.BooleanOptionalAction,
+            default=True,
+            help="Use bfloat16 precision (default: True)",
+        )
+
+        # Output arguments
+        output_group = subparser.add_argument_group("Output")
+        output_group.add_argument(
+            "--output-dir", "-o",
+            type=str,
+            default="outputs",
+            help="Base output directory (default: outputs)",
+        )
+        output_group.add_argument(
+            "--wandb-project",
+            type=str,
+            help="W&B project name for logging",
+        )
+        output_group.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Print config without running training",
+        )
+
+        # Overrides
+        subparser.add_argument(
+            "--override",
+            type=str,
+            nargs="*",
+            metavar="KEY=VALUE",
+            help="Override config values (e.g., --override epochs=10 lr=1e-5)",
+        )
+
+    # CPT subcommand
+    cpt_parser = subparsers.add_parser(
+        "cpt",
+        help="Continual Pre-Training",
+        description="Run continual pre-training on unlabeled text data",
     )
-    
-    # Global options
-    parser.add_argument(
-        "-v", "--verbose",
-        action="store_true",
-        help="Enable verbose logging",
+    add_common_args(cpt_parser)
+
+    # SFT subcommand
+    sft_parser = subparsers.add_parser(
+        "sft",
+        help="Supervised Fine-Tuning",
+        description="Run supervised fine-tuning on instruction data",
     )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Print config without running",
+    add_common_args(sft_parser)
+
+    # DPO subcommand
+    dpo_parser = subparsers.add_parser(
+        "dpo",
+        help="Direct Preference Optimization",
+        description="Run DPO training on preference data",
     )
-    
-    # Subcommands
-    subparsers = parser.add_subparsers(dest="command", help="Training stage")
-    
-    # CPT (Continual Pre-Training)
-    cpt_parser = subparsers.add_parser("cpt", help="Continual pre-training")
-    _add_common_args(cpt_parser)
-    
-    # SFT (Supervised Fine-Tuning)
-    sft_parser = subparsers.add_parser("sft", help="Supervised fine-tuning")
-    _add_common_args(sft_parser)
-    
-    # DPO (Direct Preference Optimization)
-    dpo_parser = subparsers.add_parser("dpo", help="Direct preference optimization")
-    _add_common_args(dpo_parser)
-    dpo_parser.add_argument(
-        "--dpo-beta",
-        type=float,
-        default=0.1,
-        help="DPO beta parameter (default: 0.1)",
+    add_common_args(dpo_parser)
+
+    # Merge subcommand
+    merge_parser = subparsers.add_parser(
+        "merge",
+        help="Merge LoRA adapter into base model",
+        description="Merge a trained LoRA adapter into the base model",
     )
-    dpo_parser.add_argument(
-        "--dpo-loss",
-        choices=["sigmoid", "hinge", "ipo"],
-        default="sigmoid",
-        help="DPO loss function (default: sigmoid)",
-    )
-    
-    # Merge (LoRA merging)
-    merge_parser = subparsers.add_parser("merge", help="Merge LoRA adapter into base model")
     merge_parser.add_argument(
-        "--base", "-b",
+        "--base-model",
         type=str,
         required=True,
         help="Path to base model",
     )
     merge_parser.add_argument(
-        "--adapter", "-a",
+        "--adapter",
         type=str,
         required=True,
         help="Path to LoRA adapter",
@@ -136,287 +296,127 @@ Examples:
         "--template",
         type=str,
         default="gemma",
-        help="Chat template (default: gemma)",
+        help="Chat template name (default: gemma)",
     )
     merge_parser.add_argument(
-        "--export-size",
-        type=int,
-        default=2,
-        help="Number of shards (default: 2)",
+        "--dry-run",
+        action="store_true",
+        help="Print config without running merge",
     )
-    
+
     return parser
 
 
-def _add_common_args(parser: argparse.ArgumentParser) -> None:
-    """Add common arguments to a subcommand parser."""
-    # Config file
-    parser.add_argument(
-        "-c", "--config",
-        type=Path,
-        required=True,
-        help="Path to training config YAML file",
-    )
-    
-    # GPU selection
-    parser.add_argument(
-        "-g", "--gpus",
-        type=str,
-        default="0",
-        help="Comma-separated GPU IDs (default: 0)",
-    )
-    
-    # LoRA options
-    parser.add_argument(
-        "--lora",
-        action="store_true",
-        help="Enable LoRA training",
-    )
-    parser.add_argument(
-        "--lora-rank",
-        type=int,
-        default=64,
-        help="LoRA rank (default: 64)",
-    )
-    parser.add_argument(
-        "--lora-alpha",
-        type=int,
-        help="LoRA alpha (default: 2*rank)",
-    )
-    parser.add_argument(
-        "--lora-dropout",
-        type=float,
-        default=0.05,
-        help="LoRA dropout (default: 0.05)",
-    )
-    
-    # Model/dataset overrides
-    parser.add_argument(
-        "--model", "--model_name_or_path",
-        type=str,
-        dest="model_name_or_path",
-        help="Override model path",
-    )
-    parser.add_argument(
-        "--dataset",
-        type=str,
-        help="Override dataset name",
-    )
-    parser.add_argument(
-        "--eval-dataset",
-        type=str,
-        dest="eval_dataset",
-        help="Override eval dataset name",
-    )
-    parser.add_argument(
-        "--output-dir",
-        type=str,
-        help="Override output directory",
-    )
-    parser.add_argument(
-        "--run-name",
-        type=str,
-        help="Override W&B run name",
-    )
-    
-    # Training options
-    parser.add_argument(
-        "--epochs",
-        type=float,
-        dest="num_train_epochs",
-        help="Override number of epochs",
-    )
-    parser.add_argument(
-        "--lr", "--learning-rate",
-        type=float,
-        dest="learning_rate",
-        help="Override learning rate",
-    )
-    parser.add_argument(
-        "--batch-size",
-        type=int,
-        dest="per_device_train_batch_size",
-        help="Override per-device batch size",
-    )
-    parser.add_argument(
-        "--grad-accum",
-        type=int,
-        dest="gradient_accumulation_steps",
-        help="Override gradient accumulation steps",
-    )
-    parser.add_argument(
-        "--auto-batch",
-        action="store_true",
-        help="Auto-compute gradient accumulation from batch_size in config",
-    )
-    
-    # Resume training
-    parser.add_argument(
-        "--resume",
-        type=Path,
-        dest="resume_from_checkpoint",
-        help="Resume from checkpoint directory",
-    )
-    
-    # Packing
-    parser.add_argument(
-        "--packing", "--no-packing",
-        dest="packing",
-        action=argparse.BooleanOptionalAction,
-        help="Enable/disable sequence packing",
-    )
-    
-    # Streaming
-    parser.add_argument(
-        "--streaming",
-        action="store_true",
-        help="Enable dataset streaming",
-    )
-    
-    # Knowledge distillation
-    parser.add_argument(
-        "--enable-kd",
-        action="store_true",
-        help="Enable knowledge distillation",
-    )
-    
-    # Dataset mixing
-    parser.add_argument(
-        "--mix-strategy",
-        choices=["concat", "interleave_under", "interleave_over"],
-        help="Dataset mixing strategy",
-    )
-    parser.add_argument(
-        "--mix-probs",
-        type=str,
-        help="Mixing probabilities (comma-separated, e.g., '0.6,0.4')",
-    )
-    parser.add_argument(
-        "--seed",
-        type=int,
-        help="Random seed for reproducibility",
-    )
+def run_training(args: argparse.Namespace) -> int:
+    """Run a training job from CLI arguments.
 
+    Args:
+        args: Parsed command-line arguments.
 
-def run_training(args: argparse.Namespace, extra_overrides: List[str]) -> int:
-    """Run training with given arguments."""
-    # Load base config
-    if not args.config.exists():
-        logger.error(f"Config file not found: {args.config}")
-        return 1
-    
-    config = TrainConfig.from_yaml(args.config)
-    
-    # Set stage from command
-    stage_map = {"cpt": "pt", "sft": "sft", "dpo": "dpo"}
-    config.stage = stage_map.get(args.command, args.command)
-    
-    # Apply CLI overrides
-    if args.model_name_or_path:
-        config.model_name_or_path = args.model_name_or_path
-    if args.dataset:
-        config.dataset = args.dataset
-    if hasattr(args, "eval_dataset") and args.eval_dataset:
-        config.eval_dataset = args.eval_dataset
-    if hasattr(args, "output_dir") and args.output_dir:
-        config.output_dir = args.output_dir
-    if hasattr(args, "run_name") and args.run_name:
-        config.run_name = args.run_name
-    if hasattr(args, "num_train_epochs") and args.num_train_epochs:
-        config.num_train_epochs = args.num_train_epochs
-    if hasattr(args, "learning_rate") and args.learning_rate:
-        config.learning_rate = args.learning_rate
-    if hasattr(args, "per_device_train_batch_size") and args.per_device_train_batch_size:
-        config.per_device_train_batch_size = args.per_device_train_batch_size
-    if hasattr(args, "gradient_accumulation_steps") and args.gradient_accumulation_steps:
-        config.gradient_accumulation_steps = args.gradient_accumulation_steps
-    if hasattr(args, "resume_from_checkpoint") and args.resume_from_checkpoint:
-        config.resume_from_checkpoint = str(args.resume_from_checkpoint)
-    if hasattr(args, "packing") and args.packing is not None:
-        config.packing = args.packing
-    if hasattr(args, "streaming") and args.streaming:
-        config.streaming = True
-    if hasattr(args, "enable_kd") and args.enable_kd:
-        config.enable_kd = True
-    
-    # Dataset mixing
-    if hasattr(args, "mix_strategy") and args.mix_strategy:
-        config.dataset_mix.strategy = args.mix_strategy
-    if hasattr(args, "mix_probs") and args.mix_probs:
-        config.dataset_mix.probs = [float(p) for p in args.mix_probs.split(",")]
-    if hasattr(args, "seed") and args.seed:
-        config.dataset_mix.seed = args.seed
-    
-    # LoRA settings
-    if args.lora:
-        config.lora.enabled = True
-        config.lora.rank = args.lora_rank
-        config.lora.alpha = args.lora_alpha or (2 * args.lora_rank)
-        config.lora.dropout = args.lora_dropout
-    
-    # DPO-specific
-    if args.command == "dpo":
-        config.dpo_beta = getattr(args, "dpo_beta", 0.1)
-        config.dpo_loss = getattr(args, "dpo_loss", "sigmoid")
-    
-    # Parse extra overrides (--key=value format)
-    overrides = parse_overrides(extra_overrides)
+    Returns:
+        Exit code (0 for success, 1 for failure).
+    """
+    # Load from config file or build from CLI args
+    if args.config:
+        config = TrainConfig.from_yaml(args.config)
+        # Override stage from subcommand
+        config.stage = args.stage
+    else:
+        if not args.model:
+            logger.error("Either --config or --model must be specified")
+            return 1
+
+        # Build LoRA config if enabled
+        lora = None
+        if args.lora:
+            lora = LoraConfig(
+                rank=args.lora_rank,
+                alpha=args.lora_alpha,
+                dropout=args.lora_dropout,
+            )
+
+        config = TrainConfig(
+            model_name_or_path=args.model,
+            stage=args.stage,
+            dataset=args.dataset or "",
+            output_dir=args.output_dir,
+            epochs=args.epochs,
+            batch_size=args.batch_size,
+            gradient_accumulation_steps=args.grad_accum,
+            learning_rate=args.learning_rate,
+            cutoff_len=args.cutoff_len,
+            template=args.template,
+            gpus=args.gpus,
+            bf16=args.bf16,
+            lora=lora,
+            wandb_project=args.wandb_project,
+        )
+
+    # Apply overrides
+    overrides = parse_overrides(args.override)
     for key, value in overrides.items():
         if hasattr(config, key):
             setattr(config, key, value)
             logger.info(f"Override: {key}={value}")
-    
-    # Create runner
-    runner = TrainingRunner(
-        config=config,
-        gpus=args.gpus,
-        dry_run=args.dry_run,
-        auto_compute_batch=getattr(args, "auto_batch", False),
-    )
-    
+
     # Run training
+    runner = TrainingRunner(config, dry_run=args.dry_run)
     result = runner.run()
-    
-    if result.status == "success":
-        logger.info("🎉 Training completed successfully!")
-        return 0
-    elif result.status == "skipped":
-        logger.info("[DRY RUN] Would run training")
-        return 0
-    else:
-        logger.error(f"Training failed: {result.error}")
-        return 1
+
+    return 0 if result.success else 1
 
 
 def run_merge(args: argparse.Namespace) -> int:
-    """Run LoRA merging."""
+    """Run LoRA merge from CLI arguments.
+
+    Args:
+        args: Parsed command-line arguments.
+
+    Returns:
+        Exit code (0 for success, 1 for failure).
+    """
+    from .merge import merge_lora
+
     success = merge_lora(
-        base_model=args.base,
+        base_model=args.base_model,
         adapter_path=args.adapter,
         output_dir=args.output,
         template=args.template,
-        export_size=args.export_size,
         dry_run=args.dry_run,
     )
+
     return 0 if success else 1
 
 
-def main() -> int:
-    """Main entry point."""
+def main(args: Optional[List[str]] = None) -> int:
+    """Main entry point for the CLI.
+
+    Args:
+        args: Optional list of arguments (defaults to sys.argv).
+
+    Returns:
+        Exit code (0 for success, 1 for failure).
+    """
     parser = create_parser()
-    args, extra = parser.parse_known_args()
-    
-    if args.verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
-    
-    if not args.command:
+    parsed = parser.parse_args(args)
+
+    if not parsed.stage:
         parser.print_help()
-        return 0
-    
-    if args.command == "merge":
-        return run_merge(args)
-    
-    return run_training(args, extra)
+        return 1
+
+    try:
+        if parsed.stage == "merge":
+            return run_merge(parsed)
+        else:
+            return run_training(parsed)
+
+    except KeyboardInterrupt:
+        logger.info("Training interrupted by user")
+        return 130
+
+    except Exception as e:
+        logger.exception(f"Error: {e}")
+        return 1
 
 
 if __name__ == "__main__":
