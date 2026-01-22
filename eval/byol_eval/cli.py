@@ -1,4 +1,8 @@
-"""Command-line interface for BYOL Evaluation Framework."""
+"""Command-line interface for BYOL Evaluation Framework.
+
+Provides a clean CLI for running model evaluations using lm-evaluation-harness
+and LLM-as-Judge frameworks.
+"""
 
 from __future__ import annotations
 
@@ -9,49 +13,161 @@ from pathlib import Path
 from typing import List, Optional
 
 from .config import EvalConfig, ModelConfig, TaskConfig
+from .constants import (
+    DEFAULT_BATCH_SIZE,
+    DEFAULT_DTYPE,
+    DEFAULT_GPUS,
+    DEFAULT_JUDGE_OUTPUT_DIR,
+    DEFAULT_OUTPUT_DIR,
+    VALID_DTYPES,
+)
 from .runner import EvaluationRunner
 
 # Configure logging once at CLI entry
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger("byol-eval")
 
 
 def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
-    """Parse command-line arguments."""
-    parser = argparse.ArgumentParser(prog="byol-eval", description="BYOL Model Evaluation Framework")
+    """Parse command-line arguments.
+    
+    Args:
+        args: Command-line arguments. Uses sys.argv if None.
+        
+    Returns:
+        Parsed arguments namespace.
+    """
+    parser = argparse.ArgumentParser(
+        prog="byol-eval",
+        description="BYOL Model Evaluation Framework - Evaluate LLMs using lm-eval or LLM-as-Judge",
+    )
     subparsers = parser.add_subparsers(dest="mode", help="Evaluation mode")
     
     # Judge subcommand
     judge_parser = subparsers.add_parser("judge", help="Run LLM-as-Judge evaluation")
-    judge_parser.add_argument("--model-config", "-m", type=str, help="Model config YAML")
-    judge_parser.add_argument("--dataset-config", "-d", type=str, help="Dataset config YAML")
-    judge_parser.add_argument("--output-dir", "-o", type=str, default="results/judge", help="Output directory")
+    judge_parser.add_argument(
+        "--model-config", "-m",
+        type=str,
+        help="Path to model configuration YAML file",
+    )
+    judge_parser.add_argument(
+        "--dataset-config", "-d",
+        type=str,
+        help="Path to dataset configuration YAML file",
+    )
+    judge_parser.add_argument(
+        "--output-dir", "-o",
+        type=str,
+        default=DEFAULT_JUDGE_OUTPUT_DIR,
+        help=f"Output directory for results (default: {DEFAULT_JUDGE_OUTPUT_DIR})",
+    )
     
-    # Benchmark mode (default)
-    parser.add_argument("--config", "-c", type=str, help="YAML configuration file")
-    parser.add_argument("--model", "-m", type=str, help="Model path or HuggingFace ID")
-    parser.add_argument("--model-name", type=str, help="Model name (default: derived from path)")
-    parser.add_argument("--dtype", type=str, default="bfloat16", choices=["bfloat16", "float16", "float32", "auto"])
-    parser.add_argument("--tasks", "-t", type=str, help="Comma-separated task names")
-    parser.add_argument("--tasks-path", type=str, help="Custom task definitions path")
-    parser.add_argument("--num-fewshot", "-n", type=int, default=0, help="Few-shot examples")
-    parser.add_argument("--limit", type=int, help="Max samples per task")
-    parser.add_argument("--gpus", "-g", type=str, default="0", help="GPU device IDs")
-    parser.add_argument("--batch-size", "-b", type=str, default="auto:4", help="Batch size")
-    parser.add_argument("--output-dir", "-o", type=str, default="results", help="Output directory")
-    parser.add_argument("--dry-run", action="store_true", help="Print commands without executing")
-    parser.add_argument("--log-samples", action="store_true", help="Log evaluation samples")
+    # Benchmark mode (default) arguments
+    parser.add_argument(
+        "--config", "-c",
+        type=str,
+        help="Path to YAML configuration file (overrides other options)",
+    )
+    parser.add_argument(
+        "--model", "-m",
+        type=str,
+        help="Model path or HuggingFace ID to evaluate",
+    )
+    parser.add_argument(
+        "--model-name",
+        type=str,
+        help="Human-readable model name (default: derived from path)",
+    )
+    parser.add_argument(
+        "--dtype",
+        type=str,
+        default=DEFAULT_DTYPE,
+        choices=list(VALID_DTYPES),
+        help=f"Model data type (default: {DEFAULT_DTYPE})",
+    )
+    parser.add_argument(
+        "--tasks", "-t",
+        type=str,
+        help="Comma-separated task names to evaluate",
+    )
+    parser.add_argument(
+        "--tasks-path",
+        type=str,
+        help="Path to custom task definitions directory",
+    )
+    parser.add_argument(
+        "--num-fewshot", "-n",
+        type=int,
+        default=0,
+        help="Number of few-shot examples (default: 0)",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        help="Maximum samples per task (default: all)",
+    )
+    parser.add_argument(
+        "--gpus", "-g",
+        type=str,
+        default=DEFAULT_GPUS,
+        help=f"Comma-separated GPU device IDs (default: {DEFAULT_GPUS})",
+    )
+    parser.add_argument(
+        "--batch-size", "-b",
+        type=str,
+        default=DEFAULT_BATCH_SIZE,
+        help=f"Batch size or 'auto:N' for automatic (default: {DEFAULT_BATCH_SIZE})",
+    )
+    parser.add_argument(
+        "--output-dir", "-o",
+        type=str,
+        default=DEFAULT_OUTPUT_DIR,
+        help=f"Output directory for results (default: {DEFAULT_OUTPUT_DIR})",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print commands without executing them",
+    )
+    parser.add_argument(
+        "--log-samples",
+        action="store_true",
+        help="Log individual evaluation samples to output",
+    )
+    parser.add_argument(
+        "--apply-chat-template",
+        action="store_true",
+        help="Apply chat template for instruct models",
+    )
     
     return parser.parse_args(args)
 
 
 def build_config_from_args(args: argparse.Namespace) -> EvalConfig:
-    """Build EvalConfig from CLI arguments."""
+    """Build EvalConfig from CLI arguments.
+    
+    Args:
+        args: Parsed command-line arguments.
+        
+    Returns:
+        Configured EvalConfig instance.
+        
+    Raises:
+        ValueError: If required arguments are missing.
+    """
     if args.config:
         config = EvalConfig.from_yaml(args.config)
-        if args.gpus: config.gpus = args.gpus
-        if args.output_dir: config.output_dir = args.output_dir
-        if args.tasks_path: config.tasks_path = args.tasks_path
-        if args.log_samples: config.log_samples = True
+        # CLI overrides
+        if args.gpus:
+            config.gpus = args.gpus
+        if args.output_dir:
+            config.output_dir = args.output_dir
+        if args.tasks_path:
+            config.tasks_path = args.tasks_path
+        if args.log_samples:
+            config.log_samples = True
+        if hasattr(args, "apply_chat_template") and args.apply_chat_template:
+            config.apply_chat_template = True
         return config
     
     if not args.model:
@@ -60,26 +176,61 @@ def build_config_from_args(args: argparse.Namespace) -> EvalConfig:
         raise ValueError("Either --config or --tasks must be specified")
     
     return EvalConfig(
-        models=[ModelConfig(name=args.model_name or Path(args.model).name, path=args.model, dtype=args.dtype)],
-        tasks=[TaskConfig(name=args.tasks, num_fewshot=args.num_fewshot, limit=args.limit)],
+        models=[
+            ModelConfig(
+                name=args.model_name or Path(args.model).name,
+                path=args.model,
+                dtype=args.dtype,
+            )
+        ],
+        tasks=[
+            TaskConfig(
+                name=args.tasks,
+                num_fewshot=args.num_fewshot,
+                limit=args.limit,
+            )
+        ],
         output_dir=args.output_dir,
         tasks_path=args.tasks_path,
         gpus=args.gpus,
         batch_size=args.batch_size,
         log_samples=args.log_samples,
+        apply_chat_template=getattr(args, "apply_chat_template", False),
     )
 
 
 def run_judge(args: argparse.Namespace) -> int:
-    """Run LLM-as-Judge evaluation."""
+    """Run LLM-as-Judge evaluation.
+    
+    Args:
+        args: Parsed command-line arguments.
+        
+    Returns:
+        Exit code (0 for success, 1 for failure).
+    """
     from .judge import LLMJudgeRunner
-    runner = LLMJudgeRunner(args.model_config, args.dataset_config, args.output_dir)
-    runner.run()
-    return 0
+    
+    try:
+        runner = LLMJudgeRunner(args.model_config, args.dataset_config, args.output_dir)
+        runner.run()
+        return 0
+    except FileNotFoundError as e:
+        logger.error(f"Configuration file not found: {e}")
+        return 1
+    except Exception as e:
+        logger.exception(f"Judge evaluation failed: {e}")
+        return 1
 
 
 def main(args: Optional[List[str]] = None) -> int:
-    """Main entry point."""
+    """Main entry point for the CLI.
+    
+    Args:
+        args: Command-line arguments. Uses sys.argv if None.
+        
+    Returns:
+        Exit code (0 for success, 1 for failure).
+    """
     try:
         parsed = parse_args(args)
         
@@ -92,8 +243,14 @@ def main(args: Optional[List[str]] = None) -> int:
         runner.print_summary(results)
         return 1 if any(r.status == "failed" for r in results) else 0
         
+    except ValueError as e:
+        logger.error(f"Configuration error: {e}")
+        return 1
+    except FileNotFoundError as e:
+        logger.error(f"File not found: {e}")
+        return 1
     except Exception as e:
-        logging.error(f"Error: {e}")
+        logger.exception(f"Unexpected error: {e}")
         return 1
 
 

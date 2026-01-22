@@ -1,9 +1,59 @@
-"""BYOL Evaluation Framework - Clean CLI for lm-eval benchmarks and LLM-as-Judge."""
+"""BYOL Evaluation Framework - Clean CLI for lm-eval benchmarks and LLM-as-Judge.
+
+This package provides:
+- Benchmark evaluation using lm-evaluation-harness
+- LLM-as-Judge evaluation for subjective quality assessment
+- Configurable model and task settings via YAML or CLI
+- Secure HuggingFace token management
+
+Example usage:
+    # CLI
+    byol-eval --model meta-llama/Llama-2-7b --tasks hellaswag,arc_easy
+    byol-eval judge --model-config models.yaml --dataset-config datasets.yaml
+    
+    # Python API
+    from byol_eval import EvalConfig, EvaluationRunner
+    config = EvalConfig.from_yaml("eval_config.yaml")
+    runner = EvaluationRunner(config)
+    results = runner.run_all()
+"""
 
 __version__ = "1.0.0"
 
 from .config import EvalConfig, ModelConfig, TaskConfig
+from .constants import (
+    DEFAULT_BATCH_SIZE,
+    DEFAULT_DTYPE,
+    DEFAULT_GPUS,
+    DEFAULT_OUTPUT_DIR,
+    STATUS_FAILED,
+    STATUS_SKIPPED,
+    STATUS_SUCCESS,
+)
 from .runner import EvaluationRunner, EvalResult
+from .secrets import get_hf_token, mask_token, setup_hf_environment
 from .cli import main
 
-__all__ = ["EvalConfig", "ModelConfig", "TaskConfig", "EvaluationRunner", "EvalResult", "main"]
+__all__ = [
+    # Config classes
+    "EvalConfig",
+    "ModelConfig",
+    "TaskConfig",
+    # Runner
+    "EvaluationRunner",
+    "EvalResult",
+    # Secrets management
+    "get_hf_token",
+    "setup_hf_environment",
+    "mask_token",
+    # Constants
+    "DEFAULT_BATCH_SIZE",
+    "DEFAULT_DTYPE",
+    "DEFAULT_GPUS",
+    "DEFAULT_OUTPUT_DIR",
+    "STATUS_SUCCESS",
+    "STATUS_FAILED",
+    "STATUS_SKIPPED",
+    # CLI
+    "main",
+]

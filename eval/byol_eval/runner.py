@@ -1,4 +1,7 @@
-"""Evaluation Runner for BYOL Framework."""
+"""Evaluation Runner for BYOL Framework.
+
+This module provides the main evaluation orchestration using lm-evaluation-harness.
+"""
 
 from __future__ import annotations
 
@@ -12,13 +15,24 @@ from pathlib import Path
 from typing import List, Optional
 
 from .config import EvalConfig, ModelConfig, TaskConfig
+from .constants import STATUS_FAILED, STATUS_ICONS, STATUS_SKIPPED, STATUS_SUCCESS
+from .secrets import setup_hf_environment
 
 logger = logging.getLogger("byol-eval")
 
 
 @dataclass
 class EvalResult:
-    """Result of a single evaluation run."""
+    """Result of a single evaluation run.
+    
+    Attributes:
+        model: Model name that was evaluated.
+        task: Task name that was run.
+        status: Evaluation status (success, failed, skipped).
+        output_dir: Directory where results were saved.
+        error: Error message if evaluation failed.
+        duration_seconds: Time taken for evaluation.
+    """
     model: str
     task: str
     status: str  # "success", "failed", "skipped"
@@ -28,19 +42,38 @@ class EvalResult:
 
 
 class EvaluationRunner:
-    """Main evaluation runner using lm-evaluation-harness."""
+    """Main evaluation runner using lm-evaluation-harness.
     
-    def __init__(self, config: EvalConfig, dry_run: bool = False):
+    Orchestrates model evaluation across multiple tasks using the
+    lm-evaluation-harness framework.
+    
+    Attributes:
+        config: Evaluation configuration.
+        dry_run: If True, print commands without executing.
+    """
+    
+    def __init__(self, config: EvalConfig, dry_run: bool = False) -> None:
+        """Initialize the evaluation runner.
+        
+        Args:
+            config: Evaluation configuration.
+            dry_run: If True, print commands without executing.
+        """
         self.config = config
         self.dry_run = dry_run
-        os.environ["HF_ALLOW_CODE_EVAL"] = "1"
-        if config.hf_token:
-            os.environ["HF_TOKEN"] = config.hf_token
+        setup_hf_environment(config.hf_token)
     
     def _build_command(self, model: ModelConfig, task: TaskConfig) -> List[str]:
         """Build the lm_eval command.
         
         Matches original behavior from eval/src/benchmark_evaluation/backends/hf_backend.py
+        
+        Args:
+            model: Model configuration.
+            task: Task configuration.
+            
+        Returns:
+            Command as list of strings.
         """
         output_dir = self._get_output_dir(model, task)
         
@@ -87,7 +120,15 @@ class EvaluationRunner:
         return cmd
     
     def _get_output_dir(self, model: ModelConfig, task: TaskConfig) -> str:
-        """Generate output directory path."""
+        """Generate output directory path.
+        
+        Args:
+            model: Model configuration.
+            task: Task configuration.
+            
+        Returns:
+            Path to output directory.
+        """
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         safe_model = model.name.replace("/", "_").replace("-", "_")
         safe_task = task.name.replace(",", "_").replace(" ", "_").replace("/", "_")
@@ -96,7 +137,15 @@ class EvaluationRunner:
         return str(output_dir)
     
     def run_single(self, model: ModelConfig, task: TaskConfig) -> EvalResult:
-        """Run evaluation for a single model/task pair."""
+        """Run evaluation for a single model/task pair.
+        
+        Args:
+            model: Model to evaluate.
+            task: Task to run.
+            
+        Returns:
+            EvalResult with status and metadata.
+        """
         start_time = datetime.now()
         
         # Determine effective chat template setting
@@ -116,34 +165,46 @@ class EvaluationRunner:
         
         if self.dry_run:
             logger.info("[DRY RUN] Skipping execution")
-            return EvalResult(model.name, task.name, "skipped", output_dir)
+            return EvalResult(model.name, task.name, STATUS_SKIPPED, output_dir)
         
         try:
             env = os.environ.copy()
             env["CUDA_VISIBLE_DEVICES"] = self.config.gpus
-            result = subprocess.run(cmd, env=env, capture_output=False)
+            result = subprocess.run(cmd, env=env, capture_output=False, check=False)
             duration = (datetime.now() - start_time).total_seconds()
             
             if result.returncode == 0:
                 logger.info(f"✅ Success: {model.name} on {task.name}")
-                return EvalResult(model.name, task.name, "success", output_dir, duration_seconds=duration)
+                return EvalResult(model.name, task.name, STATUS_SUCCESS, output_dir, duration_seconds=duration)
             else:
                 logger.error(f"❌ Failed: {model.name} on {task.name}")
-                return EvalResult(model.name, task.name, "failed", output_dir, f"Exit code: {result.returncode}", duration)
-                
+                return EvalResult(model.name, task.name, STATUS_FAILED, output_dir, f"Exit code: {result.returncode}", duration)
+        
+        except subprocess.SubprocessError as e:
+            duration = (datetime.now() - start_time).total_seconds()
+            logger.error(f"Subprocess error: {e}")
+            return EvalResult(model.name, task.name, STATUS_FAILED, error=str(e), duration_seconds=duration)
+        except FileNotFoundError as e:
+            duration = (datetime.now() - start_time).total_seconds()
+            logger.error(f"Command not found: {e}")
+            return EvalResult(model.name, task.name, STATUS_FAILED, error=str(e), duration_seconds=duration)
         except Exception as e:
             duration = (datetime.now() - start_time).total_seconds()
-            logger.exception(f"Error: {e}")
-            return EvalResult(model.name, task.name, "failed", error=str(e), duration_seconds=duration)
+            logger.exception(f"Unexpected error: {e}")
+            return EvalResult(model.name, task.name, STATUS_FAILED, error=str(e), duration_seconds=duration)
     
     def run_all(self) -> List[EvalResult]:
-        """Run all evaluations."""
+        """Run all evaluations.
+        
+        Returns:
+            List of EvalResult objects for all model/task combinations.
+        """
         total = len(self.config.models) * len(self.config.tasks)
         logger.info(f"🚀 Starting {total} evaluations ({len(self.config.models)} models × {len(self.config.tasks)} tasks)")
         logger.info(f"📂 Output: {self.config.output_dir}")
         logger.info(f"🖥️  GPUs: {self.config.gpus}")
         if self.config.apply_chat_template:
-            logger.info(f"💬 Global chat template: enabled")
+            logger.info("💬 Global chat template: enabled")
         
         results = []
         for model in self.config.models:
@@ -153,15 +214,19 @@ class EvaluationRunner:
     
     @staticmethod
     def print_summary(results: List[EvalResult]) -> None:
-        """Print evaluation summary."""
+        """Print evaluation summary.
+        
+        Args:
+            results: List of evaluation results.
+        """
         logger.info("\n" + "=" * 60)
         logger.info("📊 SUMMARY")
         logger.info("=" * 60)
         
         for r in results:
-            icon = {"success": "✅", "failed": "❌", "skipped": "⏭️"}.get(r.status, "?")
+            icon = STATUS_ICONS.get(r.status, "?")
             logger.info(f"  {icon} {r.model} - {r.task}")
         
-        successful = sum(1 for r in results if r.status == "success")
+        successful = sum(1 for r in results if r.status == STATUS_SUCCESS)
         total_time = sum(r.duration_seconds for r in results)
         logger.info(f"\nTotal: {successful}/{len(results)} successful | Time: {total_time:.1f}s")
