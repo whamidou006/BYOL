@@ -1,113 +1,161 @@
-# BYOL Evaluation Framework (v2)
+# BYOL Evaluation Framework
 
-A production-ready CLI for **benchmark** (lm-eval) and **LLM-as-Judge** evaluations.
+A unified evaluation framework for LLM evaluation using lm-evaluation-harness and LLM-as-Judge.
+
+## Features
+
+- **Benchmark evaluation** via lm-evaluation-harness
+- **LLM-as-Judge** evaluation using configurable judge models
+- **Secure secrets management** for HuggingFace tokens
+- **Type-safe configuration** with dataclasses
+- **CLI and Python API** interfaces
+
+## Installation
+
+```bash
+cd eval
+pip install -r requirements.txt
+pip install -e .
+```
+
+This will install:
+- [lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness)
+- byol-eval package
+
+## Secrets Management
+
+The framework supports multiple ways to provide HuggingFace tokens:
+
+1. **Environment variables** (recommended for CI/CD):
+   ```bash
+   export HF_TOKEN="your-huggingface-token"
+   # or
+   export HUGGING_FACE_HUB_TOKEN="your-huggingface-token"
+   ```
+
+2. **`.env` file** (recommended for development):
+   Create `.env` in the eval directory:
+   ```bash
+   HF_TOKEN=your-huggingface-token
+   ```
+
+3. **HuggingFace CLI cache** (`~/.huggingface/token`)
 
 ## Quick Start
 
+### Using CLI
+
 ```bash
-# Setup
-conda create -n byol_eval python=3.12 -y
-conda activate byol_eval
-pip install -r requirements.txt
-pip install -e .
+# Run benchmark evaluation
+byol-eval benchmark \
+  --model hf \
+  --model-args pretrained=google/gemma-3-4b \
+  --tasks mmlu,global_mmlu_mri \
+  --gpus 0,1
+
+# Run LLM-as-Judge evaluation
+byol-eval judge \
+  --config configs/judge.yaml \
+  --result-file results/model_outputs.json
+
+# Evaluate from config file
+byol-eval benchmark --config configs/eval.yaml
+```
+
+### Using Python API
+
+```python
+from byol_eval import EvalConfig, EvaluationRunner
+
+# Load config from YAML
+config = EvalConfig.from_yaml("configs/eval.yaml")
+
+# Or create config programmatically
+config = EvalConfig(
+    model="hf",
+    model_args="pretrained=google/gemma-3-4b-pt,dtype=bfloat16",
+    tasks=["mmlu", "global_mmlu_mri"],
+    batch_size="auto:4",
+    gpus="0,1",
+)
 
 # Run evaluation
-byol-eval -c configs/benchmark_base_mri.yaml
-```
+runner = EvaluationRunner(config)
+result = runner.run()
 
-## Usage
-
-### Benchmark Evaluation
-
-```bash
-# Base models (few-shot, NO chat template)
-byol-eval -c configs/benchmark_base_mri.yaml
-byol-eval -c configs/benchmark_base_nya.yaml
-
-# Instruct models (0-shot WITH chat template)
-byol-eval -c configs/benchmark_instruct_mri.yaml
-byol-eval -c configs/benchmark_instruct_nya.yaml
-
-# Safety benchmarks
-byol-eval -c configs/benchmark_safety.yaml
-
-# Quick single-task run
-byol-eval -m google/gemma-3-4b-pt -t global_mmlu_en -g 0
-
-# Dry run (print commands only)
-byol-eval -c configs/benchmark_base_mri.yaml --dry-run
-```
-
-### LLM-as-Judge
-
-```bash
-byol-eval judge
-byol-eval judge -m configs/judge_models.yaml -d configs/judge_datasets.yaml
-```
-
-## Configuration
-
-### Benchmark Configs
-
-| Config | Type | Tasks | Chat Template |
-|--------|------|-------|---------------|
-| `benchmark_base_mri.yaml` | Base | 29 | ❌ No |
-| `benchmark_base_nya.yaml` | Base | 29 | ❌ No |
-| `benchmark_instruct_mri.yaml` | Instruct | 35 | ✅ Yes |
-| `benchmark_instruct_nya.yaml` | Instruct | 35 | ✅ Yes |
-| `benchmark_safety.yaml` | Safety | 5 | ❌ No |
-
-### Key Differences: Base vs Instruct
-
-| Aspect | Base Models | Instruct Models |
-|--------|-------------|-----------------|
-| Chat Template | `apply_chat_template: false` | `apply_chat_template: true` |
-| Few-shot | 1-25 shots per task | 0-shot |
-| Model Type | Pretrained (`-pt`) | Instruction-tuned (`-it`) |
-| Extra Tasks | - | ifeval, humaneval, arc_challenge_chat |
-
-### Config Structure
-
-```yaml
-evaluation:
-  results_dir: "results/base_mri"
-  gpus: "0"
-  batch_size: auto:4
-  apply_chat_template: false  # Global setting
-
-models:
-  - name: "gemma-3-4b-pt"
-    path: "google/gemma-3-4b-pt"
-    dtype: "bfloat16"
-    trust_remote_code: true
-
-lm_eval:
-  include_path: "../eval/tasks"  # Custom task definitions
-  log_samples: false
-
-tasks:
-  - name: "global_mmlu_en"
-    num_fewshot: 5
-    enabled: true
-    apply_chat_template: false  # Task-level override
+if result.success:
+    print(f"✅ Evaluation completed")
+    print(f"Results: {result.results}")
+else:
+    print(f"❌ Evaluation failed: {result.error}")
 ```
 
 ## CLI Reference
 
-```
-byol-eval [OPTIONS]
+### Commands
 
-Options:
-  -c, --config FILE       YAML configuration file
-  -m, --model PATH        Model path or HuggingFace ID
-  -t, --tasks TASKS       Comma-separated task names
-  -n, --num-fewshot N     Few-shot examples (default: 0)
-  -g, --gpus IDS          GPU device IDs (default: 0)
-  -b, --batch-size SIZE   Batch size (default: auto:4)
-  -o, --output-dir DIR    Output directory (default: results)
-  --tasks-path PATH       Custom task definitions path
-  --dry-run               Print commands without executing
-  --log-samples           Log evaluation samples
+| Command | Description |
+|---------|-------------|
+| `byol-eval benchmark` | Run lm-evaluation-harness benchmarks |
+| `byol-eval judge` | Run LLM-as-Judge evaluation |
+
+### Benchmark Options
+
+| Option | Description |
+|--------|-------------|
+| `-c, --config` | Path to YAML configuration file |
+| `-m, --model` | Model type (hf, vllm, etc.) |
+| `--model-args` | Model arguments (key=value format) |
+| `-t, --tasks` | Comma-separated task names |
+| `-g, --gpus` | Comma-separated GPU IDs (default: 0) |
+| `-b, --batch-size` | Batch size (default: auto:4) |
+| `-o, --output-dir` | Results output directory |
+| `--num-fewshot` | Number of few-shot examples |
+| `--log-samples` | Log individual samples |
+
+### Judge Options
+
+| Option | Description |
+|--------|-------------|
+| `-c, --config` | Path to judge configuration |
+| `--result-file` | Path to model outputs JSON |
+| `--judge-model` | Judge model ID |
+| `--judge-prompt` | Custom judge prompt |
+| `-o, --output-dir` | Results output directory |
+
+## Configuration Files
+
+### Benchmark Config (`configs/eval.yaml`)
+
+```yaml
+model: hf
+model_args: pretrained=google/gemma-3-4b-pt,dtype=bfloat16,trust_remote_code=True
+tasks:
+  - mmlu
+  - global_mmlu_mri
+  - hellaswag
+batch_size: auto:4
+gpus: "0,1,2,3"
+num_fewshot: 5
+output_base_path: results/
+log_samples: true
+```
+
+### Judge Config (`configs/judge.yaml`)
+
+```yaml
+judge_model: openai/gpt-4o
+judge_prompt_template: |
+  Evaluate the following response for accuracy and helpfulness.
+  Question: {question}
+  Response: {response}
+  Reference: {reference}
+  
+  Score (1-5):
+criteria:
+  accuracy: 0.4
+  helpfulness: 0.3
+  fluency: 0.3
 ```
 
 ## Project Structure
@@ -115,50 +163,47 @@ Options:
 ```
 eval/
 ├── byol_eval/
-│   ├── __init__.py      # Package exports
-│   ├── cli.py           # CLI entry point
-│   ├── config.py        # Configuration dataclasses
-│   ├── judge.py         # LLM-as-Judge wrapper
-│   └── runner.py        # Evaluation runner
+│   ├── __init__.py       # Package exports
+│   ├── cli.py            # CLI entry point
+│   ├── config.py         # Configuration dataclasses
+│   ├── constants.py      # Default values and status codes
+│   ├── secrets.py        # HuggingFace token management
+│   ├── runner.py         # Evaluation runner
+│   ├── harness.py        # lm-eval-harness wrapper
+│   ├── judge.py          # LLM-as-Judge implementation
+│   └── py.typed          # PEP 561 type marker
 ├── configs/
-│   ├── benchmark_*.yaml # Benchmark configs
-│   ├── judge_models.yaml
-│   └── judge_datasets.yaml
-├── pyproject.toml
+│   ├── eval.yaml         # Benchmark evaluation config
+│   └── judge.yaml        # LLM-as-Judge config
 ├── requirements.txt
+├── pyproject.toml
 └── README.md
 ```
 
-## Behavior Alignment
+## Constants Reference
 
-This framework generates identical `lm_eval` commands as the original `eval/` code:
+Default values are defined in `constants.py`:
 
-```bash
-# Original (eval/)
-python eval/src/benchmark_evaluation/run_evaluation.py --config config.yaml
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `DEFAULT_GPUS` | "0" | Default GPU IDs |
+| `DEFAULT_BATCH_SIZE` | "auto:4" | Auto batch sizing |
+| `DEFAULT_NUM_FEWSHOT` | 0 | Default few-shot count |
+| `STATUS_SUCCESS` | "success" | Success status code |
+| `STATUS_FAILED` | "failed" | Failure status code |
+| `STATUS_SKIPPED` | "skipped" | Skipped status code |
 
-# New (eval_v2/)
-byol-eval -c config.yaml
-```
+## Supported Tasks
 
-Both produce equivalent commands:
-```bash
-python -m lm_eval \
-  --model hf \
-  --model_args pretrained=MODEL,dtype=bfloat16,trust_remote_code=true \
-  --tasks TASKS \
-  --batch_size auto:4 \
-  --num_fewshot N \
-  --include_path /path/to/tasks \
-  [--apply_chat_template]  # Only for instruct configs
-```
+The framework supports all tasks from lm-evaluation-harness:
 
-## Dependencies
-
-- Python 3.12+
-- lm-eval (lm-evaluation-harness)
-- PyYAML
-- torch, transformers, accelerate
+- **MMLU**: Massive Multitask Language Understanding
+- **Global MMLU**: Multilingual MMLU variants
+- **HellaSwag**: Commonsense reasoning
+- **ARC**: AI2 Reasoning Challenge
+- **WinoGrande**: Winograd schema challenge
+- **TruthfulQA**: Truthfulness evaluation
+- Custom tasks via lm-eval-harness
 
 ## License
 
