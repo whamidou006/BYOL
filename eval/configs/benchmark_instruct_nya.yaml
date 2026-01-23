@@ -15,7 +15,7 @@ models:
     trust_remote_code: true
 
 lm_eval:
-  include_path: "../eval_old/tasks"
+  include_path: "eval/tasks"
   log_samples: false
 
 tasks:

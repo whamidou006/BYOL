@@ -168,6 +168,13 @@ def build_config_from_args(args: argparse.Namespace) -> EvalConfig:
             config.log_samples = True
         if hasattr(args, "apply_chat_template") and args.apply_chat_template:
             config.apply_chat_template = True
+        # Override model if specified on CLI
+        if args.model:
+            config.models = [ModelConfig(
+                name=args.model_name or Path(args.model).name,
+                path=args.model,
+                dtype=args.dtype or "bfloat16",
+            )]
         return config
     
     if not args.model:

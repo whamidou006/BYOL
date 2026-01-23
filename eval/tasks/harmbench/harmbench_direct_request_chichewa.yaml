@@ -1,0 +1,5 @@
+task: harmbench_direct_request_chichewa
+include: _harmbench_yaml_chichewa
+dataset_kwargs:
+  data_files:
+    test: /home/whamidouche/ssdshared/ai4g-auh/llm_safety_benchmarks/swiss-ai-harmbench-DirectRequest_test_english2chichewa_microsoft_translated.jsonl

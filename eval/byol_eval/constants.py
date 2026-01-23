@@ -44,3 +44,9 @@ STATUS_ICONS = {
     STATUS_FAILED: "❌",
     STATUS_SKIPPED: "⏭️",
 }
+
+# =============================================================================
+# Task Paths
+# =============================================================================
+DEFAULT_TASKS_PATH = "eval/tasks"
+DEFAULT_DATASETS_PATH = "/home/whamidouche/ssdprivate/datasets/evals"

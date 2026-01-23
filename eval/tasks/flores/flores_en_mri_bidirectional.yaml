@@ -1,0 +1,18 @@
+# FLORES Bidirectional Translation Group Task
+# Groups both English-Maori and Maori-English translation tasks
+task: flores_en_mri_bidirectional
+group: flores_translation
+group_alias: flores_en_mri_bidirectional
+task_alias: flores_en_mri_bidirectional
+tag:
+  - flores
+  - translation
+  - multilingual
+  - maori
+  - bidirectional
+task_list:
+  - flores_en_mri
+  - flores_mri_en
+
+metadata:
+  version: 1.0

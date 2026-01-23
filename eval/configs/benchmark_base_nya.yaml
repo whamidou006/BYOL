@@ -13,7 +13,7 @@ models:
     trust_remote_code: true
 
 lm_eval:
-  include_path: "../eval_old/tasks"
+  include_path: "eval/tasks"
   log_samples: false
 
 tasks:
@@ -43,7 +43,7 @@ tasks:
   # XNLI - 5-shot
   - name: "xnli_ny"
     num_fewshot: 5
-    enabled: true
+    enabled: false
     batch_size: auto:2
 
   - name: "xnli_en"

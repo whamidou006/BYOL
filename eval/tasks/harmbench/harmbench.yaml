@@ -1,0 +1,11 @@
+group: harmbench
+task:
+  - harmbench_direct_request
+  - harmbench_human_jailbreaks
+aggregate_metric_list:
+  - metric: score
+    aggregation: mean
+    weight_by_size: true
+  - metric: reversed_score
+    aggregation: mean
+    weight_by_size: true

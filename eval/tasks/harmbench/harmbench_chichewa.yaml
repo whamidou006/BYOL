@@ -1,0 +1,14 @@
+group: harmbench_chichewa
+task:
+  - harmbench_direct_request_chichewa
+  - harmbench_human_jailbreaks_chichewa
+aggregate_metric_list:
+  - metric: score
+    aggregation: mean
+    weight_by_size: true
+  - metric: reversed_score
+    aggregation: mean
+    weight_by_size: true
+metadata:
+  version: 1.0
+  language: chichewa
