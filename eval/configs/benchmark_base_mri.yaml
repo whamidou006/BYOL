@@ -126,11 +126,9 @@ tasks:
     enabled: true
 
   # XQuAD - 0-shot
-  - name: "xquad_mri"
     num_fewshot: 0
     enabled: true
 
-  - name: "xquad_en"
     num_fewshot: 0
     enabled: true
 

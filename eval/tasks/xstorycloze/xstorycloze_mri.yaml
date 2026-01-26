@@ -3,5 +3,5 @@ task: xstorycloze_mri
 dataset_name: mri
 dataset_kwargs:
   data_files:
-    train: eval/data/xstory_cloze_train_english2Maori_microsoft_translated.jsonl
-    eval:  eval/data/xstory_cloze_eval_english2Maori_microsoft_translated.jsonl
+    train: eval/data/maori/xstory_cloze_train_english2Maori_microsoft_translated.jsonl
+    eval:  eval/data/maori/xstory_cloze_eval_english2Maori_microsoft_translated.jsonl

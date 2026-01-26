@@ -2,8 +2,8 @@ task: xcopa_mri
 dataset_path: json
 dataset_kwargs:
   data_files:
-    validation: eval/data/copa_validation_english2Maori_microsoft_translated.jsonl 
-    test: eval/data/copa_test_english2Maori_microsoft_translated.jsonl 
+    validation: eval/data/maori/copa_validation_english2Maori_microsoft_translated.jsonl 
+    test: eval/data/maori/copa_test_english2Maori_microsoft_translated.jsonl 
 output_type: multiple_choice
 validation_split: validation
 test_split: test

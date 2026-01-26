@@ -1,15 +1,15 @@
 # DISABLED: XNLI Chichewa (nya_Latn) task
 # Dataset not available - needs to be translated first
 # When available, update paths to:
-#   train: eval/data/xnli_validation_english2chichewa_microsoft_translated.jsonl
-#   validation: eval/data/xnli_test_english2chichewa_microsoft_translated.jsonl
+#   train: eval/data/chichewa/xnli_validation_english2chichewa_microsoft_translated.jsonl
+#   validation: eval/data/chichewa/xnli_test_english2chichewa_microsoft_translated.jsonl
 
 dataset_name: ny
 dataset_kwargs:
   data_files:
     # PLACEHOLDER - files don't exist yet
-    train: eval/data/xnli_validation_english2chichewa_microsoft_translated.jsonl
-    validation: eval/data/xnli_test_english2chichewa_microsoft_translated.jsonl
+    train: eval/data/chichewa/xnli_validation_english2chichewa_microsoft_translated.jsonl
+    validation: eval/data/chichewa/xnli_test_english2chichewa_microsoft_translated.jsonl
 doc_to_choice: '{{[premise+", zabwino? Inde, "+hypothesis,premise+", kapena? Komanso, "+hypothesis,premise+",
   zabwino? ayi, "+hypothesis]}}'
 doc_to_text: ''

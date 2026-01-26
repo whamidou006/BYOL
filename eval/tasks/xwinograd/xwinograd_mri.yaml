@@ -4,4 +4,4 @@ include: xwinograd_common_yaml
 task: xwinograd_mri
 dataset_kwargs:
   data_files:
-    test: eval/data/xwinograd_aligned_maori_1000.jsonl #eval/data/xwinograd_test_english2Maori_microsoft_translated.jsonl
+    test: eval/data/maori/xwinograd_aligned_maori_1000.jsonl #eval/data/maori/xwinograd_test_english2Maori_microsoft_translated.jsonl

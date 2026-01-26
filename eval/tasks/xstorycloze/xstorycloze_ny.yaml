@@ -3,5 +3,5 @@ task: xstorycloze_ny
 dataset_name: ny
 dataset_kwargs:
   data_files:
-    train: eval/data/xstory_cloze_train_english2chichewa_microsoft_translated.jsonl
-    eval:  eval/data/xstory_cloze_eval_english2chichewa_microsoft_translated.jsonl
+    train: eval/data/chichewa/xstory_cloze_train_english2chichewa_microsoft_translated.jsonl
+    eval:  eval/data/chichewa/xstory_cloze_eval_english2chichewa_microsoft_translated.jsonl

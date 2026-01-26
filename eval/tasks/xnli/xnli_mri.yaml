@@ -2,8 +2,8 @@
 dataset_name: mri
 dataset_kwargs:
   data_files:
-    train: eval/data/xnli_validation_english2Maori_microsoft_translated.jsonl
-    validation: eval/data/xnli_test_english2Maori_microsoft_translated.jsonl
+    train: eval/data/maori/xnli_validation_english2Maori_microsoft_translated.jsonl
+    validation: eval/data/maori/xnli_test_english2Maori_microsoft_translated.jsonl
 doc_to_choice: '{{[premise+", right? Yes, "+hypothesis,premise+", or? Also, "+hypothesis,premise+",
   right? No, "+hypothesis]}}'
 doc_to_text: ''

@@ -10,8 +10,8 @@ test_split: test
 fewshot_split: validation
 dataset_kwargs:
   data_files:
-    validation: eval/data/ai2_arc_hard_validation_english2Maori_microsoft_translated.jsonl
-    test: eval/data/ai2_arc_hard_test_english2Maori_microsoft_translated.jsonl
+    validation: eval/data/maori/ai2_arc_hard_validation_english2Maori_microsoft_translated.jsonl
+    test: eval/data/maori/ai2_arc_hard_test_english2Maori_microsoft_translated.jsonl
 doc_to_text: 'I runga i te pātai e whai ake nei me ngā kōwhiringa e whā (A, B, C me D), tīpakohia te whakautu pai rawa.\nPātai: {{question.strip()}}\nA. {{choices.text[0]}}\nB. {{choices.text[1]}}\nC. {{choices.text[2]}}{% if choices.text|length > 3 %}\nD. {{choices.text[3]}}{% endif %}\nMe mutu tō whakautu ki te kī "Ko te whakautu pai ko [the_answer_letter]" ā, ko te [the_answer_letter] ko tētahi o A, B, C, D.'
 gen_prefix: 'Ko te whakautu pai ko'
 fewshot_delimiter: "\n\n"

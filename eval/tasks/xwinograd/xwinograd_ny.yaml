@@ -4,4 +4,4 @@ include: xwinograd_common_yaml
 task: xwinograd_ny
 dataset_kwargs:
   data_files:
-    test: eval/data/xwinograd_aligned_chichewa_1000.jsonl
+    test: eval/data/chichewa/xwinograd_aligned_chichewa_1000.jsonl

@@ -4,7 +4,7 @@ fewshot_split: null
 # Internal dataset configuration for Maori
 dataset_kwargs:
   data_files:
-    test: eval/data/mmlu_lite_test_english2chichewa_professional_updated.jsonl
+    test: eval/data/chichewa/mmlu_lite_test_english2chichewa_professional_updated.jsonl
 # Prompt template
 output_type: generate_until
 description: "Your response should be concise, and you should end with \"The answer is (X)\", where X is the correct letter choice.\n\n"

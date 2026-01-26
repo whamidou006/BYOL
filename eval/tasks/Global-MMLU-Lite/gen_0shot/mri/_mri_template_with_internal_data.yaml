@@ -4,7 +4,7 @@ fewshot_split: null
 # Internal dataset configuration for Maori
 dataset_kwargs:
   data_files:
-    test: eval/data/mmlu_lite_test_english2maori_google_translated.jsonl
+    test: eval/data/maori/mmlu_lite_test_english2maori_google_translated.jsonl
 
 # Prompt template
 output_type: generate_until

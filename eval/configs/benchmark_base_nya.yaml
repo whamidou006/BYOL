@@ -127,11 +127,9 @@ tasks:
     batch_size: auto:1
 
   # XQuAD - 0-shot
-  - name: "xquad_ny"
     num_fewshot: 0
     enabled: true
 
-  - name: "xquad_en"
     num_fewshot: 0
     enabled: true
 

@@ -2,8 +2,8 @@ task: piqa_mri
 dataset_path: json
 dataset_kwargs:
   data_files:
-    train: eval/data/piqa_train_english2Maori_microsoft_translated.jsonl
-    validation: eval/data/piqa_validation_english2Maori_microsoft_translated.jsonl
+    train: eval/data/maori/piqa_train_english2Maori_microsoft_translated.jsonl
+    validation: eval/data/maori/piqa_validation_english2Maori_microsoft_translated.jsonl
 output_type: multiple_choice
 training_split: train
 validation_split: validation

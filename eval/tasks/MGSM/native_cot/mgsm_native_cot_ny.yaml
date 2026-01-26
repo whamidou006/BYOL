@@ -2,8 +2,8 @@
 dataset_name: ny
 dataset_kwargs:
   data_files: 
-    train: eval/data/mgsm_train_english2chichewa_microsoft_translated.jsonl
-    test:  eval/data/mgsm_test_english2chichewa_microsoft_translated.jsonl
+    train: eval/data/chichewa/mgsm_train_english2chichewa_microsoft_translated.jsonl
+    test:  eval/data/chichewa/mgsm_test_english2chichewa_microsoft_translated.jsonl
 doc_to_target: '{% if answer is not none %}{{answer[24:]}}{% else %}{{answer_number|string}}{% endif %}'
 doc_to_text: '{% if answer is not none %}{{question+"\nMayankho Paso ndi Paso:"}}{% else %}{{"Funso: "+question+"\nMayankho Paso ndi Paso:"}}{% endif %}'
 filter_list:

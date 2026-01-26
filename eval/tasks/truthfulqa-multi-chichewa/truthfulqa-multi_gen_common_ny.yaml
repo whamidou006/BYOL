@@ -3,8 +3,8 @@ tag:
 dataset_path: json
 dataset_kwargs:
   data_files:
-    validation: eval/data/HiTZ-truthfulqa-multi_validation_english2chichewa_microsoft_translated.jsonl
-    train: eval/data/HiTZ-truthfulqa-multi_train_english2chichewa_microsoft_translated.jsonl
+    validation: eval/data/chichewa/HiTZ-truthfulqa-multi_validation_english2chichewa_microsoft_translated.jsonl
+    train: eval/data/chichewa/HiTZ-truthfulqa-multi_train_english2chichewa_microsoft_translated.jsonl
     
 output_type: generate_until
 generation_kwargs:

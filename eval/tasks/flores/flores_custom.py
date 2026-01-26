@@ -5,6 +5,25 @@ import datasets
 from typing import Dict, List, Any
 
 
+def process_docs(dataset: datasets.Dataset) -> datasets.Dataset:
+    """
+    Process flores_plus dataset for lm-eval. This function is called by lm-eval after loading.
+    Uses the dev split for processing.
+    Returns a datasets.Dataset object (required by lm-eval).
+    """
+    paired_examples = process_flores_plus_data("dev")
+    return datasets.Dataset.from_list(paired_examples)
+
+
+def process_docs_devtest(dataset: datasets.Dataset) -> datasets.Dataset:
+    """
+    Process flores_plus dataset for lm-eval using devtest split.
+    Returns a datasets.Dataset object (required by lm-eval).
+    """
+    paired_examples = process_flores_plus_data("devtest")
+    return datasets.Dataset.from_list(paired_examples)
+
+
 def process_flores_plus_data(split: str = "dev") -> List[Dict[str, Any]]:
     """
     Process flores_plus dataset to create paired examples for English-Chichewa and English-Maori

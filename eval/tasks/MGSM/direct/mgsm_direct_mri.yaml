@@ -2,8 +2,8 @@
 dataset_name: mri
 dataset_kwargs:
   data_files: 
-    train: eval/data/mgsm_train_english2Maori_microsoft_translated.jsonl
-    test:  eval/data/mgsm_test_english2Maori_microsoft_translated.jsonl
+    train: eval/data/maori/mgsm_train_english2Maori_microsoft_translated.jsonl
+    test:  eval/data/maori/mgsm_test_english2Maori_microsoft_translated.jsonl
 doc_to_target: '{% if answer is not none %}{{answer[31:]}}{% else %}{{answer_number|string}}{% endif %}'
 doc_to_text: '{% if answer is not none %}{{question+"\nWhakautu:"}}{% else %}{{"Pātai: "+question+"\nWhakautu:"}}{% endif %}'
 generation_kwargs:

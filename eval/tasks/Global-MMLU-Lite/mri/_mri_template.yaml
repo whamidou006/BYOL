@@ -16,5 +16,5 @@ metadata:
   version: 0.0
 dataset_kwargs:
   data_files:
-    dev: eval/data/mmlu_lite_dev_english2maori_google_translated.jsonl
-    test: eval/data/mmlu_lite_test_english2maori_google_translated.jsonl
+    dev: eval/data/maori/mmlu_lite_dev_english2maori_google_translated.jsonl
+    test: eval/data/maori/mmlu_lite_test_english2maori_google_translated.jsonl

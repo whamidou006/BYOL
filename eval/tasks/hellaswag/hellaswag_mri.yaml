@@ -4,7 +4,7 @@ task: hellaswag_mri
 dataset_path: json
 dataset_kwargs:
   data_files:
-    validation: eval/data/hellaswag_validation_english2Maori_microsoft_translated.jsonl 
+    validation: eval/data/maori/hellaswag_validation_english2Maori_microsoft_translated.jsonl 
   trust_remote_code: true
 output_type: multiple_choice
 training_split: null

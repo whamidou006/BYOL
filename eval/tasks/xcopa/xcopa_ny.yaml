@@ -2,8 +2,8 @@ task: xcopa_ny
 dataset_path: json
 dataset_kwargs:
   data_files:
-    validation: eval/data/x-copa_validation_english2chichewa_microsoft_translated.jsonl 
-    test: eval/data/x-copa_test_english2chichewa_microsoft_translated.jsonl
+    validation: eval/data/chichewa/x-copa_validation_english2chichewa_microsoft_translated.jsonl 
+    test: eval/data/chichewa/x-copa_test_english2chichewa_microsoft_translated.jsonl
 output_type: multiple_choice
 validation_split: validation
 test_split: test

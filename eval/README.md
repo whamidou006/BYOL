@@ -14,6 +14,7 @@ A unified evaluation framework for LLM evaluation using lm-evaluation-harness an
 
 ```bash
 cd eval
+git clone https://github.com/EleutherAI/lm-evaluation-harness.git
 pip install -r requirements.txt
 pip install -e .
 ```
