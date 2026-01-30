@@ -159,10 +159,36 @@ criteria:
   fluency: 0.3
 ```
 
+## Extracting Benchmark Results
+
+Parse lm-evaluation-harness log files to extract scores:
+
+```bash
+# Base model (CPT)
+python extract_benchmarks.py log.txt --mode base --lang mri
+
+# Instruct model
+python extract_benchmarks.py log.txt --mode instruct --lang nya
+
+# CSV output
+python extract_benchmarks.py log.txt --mode instruct --lang mri --csv
+
+# Debug (show parsed tasks)
+python extract_benchmarks.py log.txt --mode base --lang mri --debug
+```
+
+| Mode | Benchmarks |
+|------|------------|
+| `base` | Global MMLU, ARC, MGSM, HellaSwag, XCOPA, XStoryCloze, PIQA, Belebele, FLORES |
+| `instruct` | Global MMLU, MGSM, BBH, GPQA, XCOPA, XNLI, XWinograd, Belebele, IFEval, TruthfulQA, HumanEval |
+
+Languages: `mri` (Māori), `nya` (Chichewa)
+
 ## Project Structure
 
 ```
 eval/
+├── extract_benchmarks.py # Log file parser
 ├── byol_eval/
 │   ├── __init__.py       # Package exports
 │   ├── cli.py            # CLI entry point
