@@ -1,7 +1,12 @@
 """Command-line interface for BYOL Evaluation Framework.
 
-Provides a clean CLI for running model evaluations using lm-evaluation-harness
-and LLM-as-Judge frameworks.
+Provides a clean CLI for running model evaluations using lm-evaluation-harness,
+LLM-as-Judge frameworks, and benchmark result extraction.
+
+Subcommands:
+    (default)  Run lm-evaluation-harness benchmarks
+    judge      Run LLM-as-Judge evaluation
+    extract    Extract benchmark results from log files
 """
 
 from __future__ import annotations
@@ -22,6 +27,7 @@ from .constants import (
     VALID_DTYPES,
 )
 from .runner import EvaluationRunner
+from .extract import EvalMode, Language
 
 # Configure logging once at CLI entry
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -60,6 +66,41 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
         type=str,
         default=DEFAULT_JUDGE_OUTPUT_DIR,
         help=f"Output directory for results (default: {DEFAULT_JUDGE_OUTPUT_DIR})",
+    )
+    
+    # Extract subcommand
+    extract_parser = subparsers.add_parser(
+        "extract", 
+        help="Extract benchmark results from lm-eval log files"
+    )
+    extract_parser.add_argument(
+        "log_file",
+        type=Path,
+        help="Path to lm-evaluation-harness log file",
+    )
+    extract_parser.add_argument(
+        "--eval-mode",
+        type=str,
+        choices=[e.value for e in EvalMode],
+        default=EvalMode.INSTRUCT.value,
+        help="Evaluation mode: 'base' for CPT models, 'instruct' for fine-tuned (default: instruct)",
+    )
+    extract_parser.add_argument(
+        "--lang",
+        type=str,
+        choices=[e.value for e in Language],
+        default=Language.MRI.value,
+        help="Target language code (default: mri)",
+    )
+    extract_parser.add_argument(
+        "--csv",
+        action="store_true",
+        help="Output results in CSV format",
+    )
+    extract_parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Show all parsed tasks (useful for debugging)",
     )
     
     # Benchmark mode (default) arguments
@@ -229,6 +270,50 @@ def run_judge(args: argparse.Namespace) -> int:
         return 1
 
 
+def run_extract(args: argparse.Namespace) -> int:
+    """Run benchmark result extraction from log files.
+    
+    Args:
+        args: Parsed command-line arguments.
+        
+    Returns:
+        Exit code (0 for success, 1 for failure).
+    """
+    from .extract import LogParser, BenchmarkExtractor, OutputFormatter, EvalMode
+    
+    # Validate file exists
+    if not args.log_file.exists():
+        logger.error(f"File not found: {args.log_file}")
+        return 1
+    
+    try:
+        log_parser = LogParser(args.log_file)
+    except Exception as e:
+        logger.error(f"Error parsing log file: {e}")
+        return 1
+    
+    # Debug output
+    if args.debug:
+        OutputFormatter.print_debug(log_parser.metrics)
+        print()
+    
+    # Extract benchmarks based on mode
+    extractor = BenchmarkExtractor(log_parser.metrics, args.lang)
+    
+    if args.eval_mode == EvalMode.BASE.value:
+        results = extractor.extract_base()
+    else:
+        results = extractor.extract_instruct()
+    
+    # Output results
+    if args.csv:
+        OutputFormatter.print_csv(results)
+    else:
+        OutputFormatter.print_table(results, args.lang)
+    
+    return 0
+
+
 def main(args: Optional[List[str]] = None) -> int:
     """Main entry point for the CLI.
     
@@ -243,6 +328,9 @@ def main(args: Optional[List[str]] = None) -> int:
         
         if parsed.mode == "judge":
             return run_judge(parsed)
+        
+        if parsed.mode == "extract":
+            return run_extract(parsed)
         
         config = build_config_from_args(parsed)
         runner = EvaluationRunner(config, dry_run=parsed.dry_run)
