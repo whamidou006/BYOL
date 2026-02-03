@@ -15,12 +15,13 @@ A unified evaluation framework for LLM evaluation using lm-evaluation-harness an
 ```bash
 cd eval
 git clone https://github.com/EleutherAI/lm-evaluation-harness.git
+python patches/apply_lmeval_patches.py
 pip install -r requirements.txt
 pip install -e .
 ```
 
 This will install:
-- [lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness)
+- [lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness) with BYOL patches
 - byol-eval package
 
 ## Secrets Management

@@ -23,7 +23,8 @@ from pathlib import Path
 # =============================================================================
 
 # Language code aliases (some tasks use 'ny' instead of 'nya')
-LANG_ALIASES = {"nya": ["nya", "ny"], "mri": ["mri"]}
+# Note: Order matters - put most common variant first for each context
+LANG_ALIASES = {"nya": ["nya", "ny", "nyanja"], "mri": ["mri", "maori"]}
 
 
 # =============================================================================
@@ -98,7 +99,7 @@ def extract_base(p: LogParser, lang: str) -> list[Result]:
     return [
         # General & STEM
         Result("Global MMLU-Lite", "General & STEM", "acc",
-               p.get(f"global_mmlu_{lang}", "acc"),
+               p.get_lang("global_mmlu_{lang}", lang, "acc"),
                p.get("global_mmlu_en", "acc")),
         Result("ARC-Easy", "General & STEM", "acc_norm",
                p.get_lang("arc_easy_{lang}", lang, "acc_norm"),
