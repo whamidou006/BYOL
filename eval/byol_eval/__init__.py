@@ -3,19 +3,13 @@
 This package provides:
 - Benchmark evaluation using lm-evaluation-harness
 - LLM-as-Judge evaluation for subjective quality assessment
-- Benchmark result extraction from log files
 - Configurable model and task settings via YAML or CLI
 - Secure HuggingFace token management
 
 Example usage:
-    # CLI - Run benchmarks
+    # CLI
     byol-eval --model meta-llama/Llama-2-7b --tasks hellaswag,arc_easy
-    
-    # CLI - LLM-as-Judge
     byol-eval judge --model-config models.yaml --dataset-config datasets.yaml
-    
-    # CLI - Extract benchmark results
-    byol-eval extract results/log.txt --eval-mode base --lang nya --csv
     
     # Python API
     from byol_eval import EvalConfig, EvaluationRunner
@@ -24,7 +18,7 @@ Example usage:
     results = runner.run_all()
 """
 
-__version__ = "1.1.0"
+__version__ = "1.0.0"
 
 from .config import EvalConfig, ModelConfig, TaskConfig
 from .constants import (
@@ -38,15 +32,6 @@ from .constants import (
 )
 from .runner import EvaluationRunner, EvalResult
 from .secrets import get_hf_token, mask_token, setup_hf_environment
-from .extract import (
-    BenchmarkExtractor,
-    BenchmarkResult,
-    EvalMode,
-    Language,
-    LogParser,
-    OutputFormatter,
-    ParsedMetrics,
-)
 from .cli import main
 
 __all__ = [
@@ -57,14 +42,6 @@ __all__ = [
     # Runner
     "EvaluationRunner",
     "EvalResult",
-    # Extract
-    "BenchmarkExtractor",
-    "BenchmarkResult",
-    "EvalMode",
-    "Language",
-    "LogParser",
-    "OutputFormatter",
-    "ParsedMetrics",
     # Secrets management
     "get_hf_token",
     "setup_hf_environment",
