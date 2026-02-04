@@ -1,149 +1,83 @@
 # BYOL Training Framework
 
-A clean Python wrapper for LlamaFactory training with best practices.
-Supports CPT (Continual Pre-Training), SFT (Supervised Fine-Tuning), and DPO.
+A production-ready Python wrapper for [LlamaFactory](https://github.com/hiyouga/LLaMAFactory) training.
 
-## Features
+Supports **CPT** (Continual Pre-Training), **SFT** (Supervised Fine-Tuning), and **DPO** (Direct Preference Optimization).
 
-- **Type-safe configuration** with dataclasses
-- **Secure secrets management** for HuggingFace and W&B tokens
-- **LoRA fine-tuning** with configurable parameters
-- **Dataset mixing** strategies (concat, interleave)
-- **CLI and Python API** interfaces
+---
 
-## Installation
+## Quick Install
 
 ```bash
+# 1. Create conda environment
+conda create -n byol_train python=3.12 -y
+conda activate byol_train
+
+# 2. Clone repository
+git clone https://github.com/your-org/BYOL.git
+cd BYOL
+
+# 3. Install LlamaFactory
+git clone --depth 1 https://github.com/hiyouga/LlamaFactory.git
+cd LlamaFactory && pip install -e ".[torch,metrics]" && cd ..
+
+# 4. Install BYOL Train
 cd train
 pip install -r requirements.txt
 pip install -e .
+
+# 5. Fix Gemma 3 compatibility
+pip install transformers==4.51.3
 ```
 
-This will install:
-- [LlamaFactory](https://github.com/hiyouga/LLaMAFactory) from GitHub
-- Metrics dependencies (rouge-score, nltk, etc.)
-- byol-train package
-
-## Secrets Management
-
-The framework supports multiple ways to provide HuggingFace/W&B tokens:
-
-1. **Environment variables** (recommended for CI/CD):
-   ```bash
-   export HF_TOKEN="your-huggingface-token"
-   export WANDB_API_KEY="your-wandb-key"
-   ```
-
-2. **Local secrets file** (recommended for development):
-   Create `byol_train/secrets_local.py` (gitignored):
-   ```python
-   HF_TOKEN = "your-huggingface-token"
-   WANDB_API_KEY = "your-wandb-key"
-   WANDB_PROJECT = "your-project-name"
-   ```
-
-3. **HuggingFace CLI cache** (`~/.huggingface/token`)
-
-## Quick Start
-
-### Using CLI
+### DeepSpeed (Optional)
 
 ```bash
-# CPT training
-byol-train cpt --config configs/cpt.yaml --gpus 0,1
-
-# SFT training with LoRA
-byol-train sft --model meta-llama/Llama-3-8B --dataset alpaca --lora --lora-rank 64
-
-# DPO training
-byol-train dpo --config configs/dpo.yaml --gpus 0,1,2,3
-
-# Dry run (preview config without training)
-byol-train sft --config configs/sft.yaml --dry-run
+conda install -y -c nvidia cuda-toolkit=12.8
+export CUDA_HOME=$CONDA_PREFIX
+echo 'export CUDA_HOME=$CONDA_PREFIX' >> ~/.bashrc
+pip install deepspeed
 ```
 
-### Using Python API
+---
 
-```python
-from byol_train import TrainConfig, TrainingRunner, LoraConfig
+## Usage
 
-# Load config from YAML
-config = TrainConfig.from_yaml("configs/cpt.yaml")
+### Set Environment
 
-# Or create config programmatically
-config = TrainConfig(
-    model_name_or_path="google/gemma-3-4b-pt",
-    stage="cpt",
-    dataset="fineweb2_dataset_mri_train",
-    epochs=4,
-    learning_rate=1e-5,
-    lora=LoraConfig(rank=64, alpha=128),
-)
-
-# Run training
-runner = TrainingRunner(config)
-result = runner.run()
-
-if result.success:
-    print(f"✅ Training completed: {result.output_dir}")
-else:
-    print(f"❌ Training failed: {result.error}")
-```
-
-## CLI Reference
-
-### Training Stages
-
-| Command | Description |
-|---------|-------------|
-| `byol-train cpt` | Continual Pre-Training on unlabeled text |
-| `byol-train sft` | Supervised Fine-Tuning on instruction data |
-| `byol-train dpo` | Direct Preference Optimization |
-| `byol-train merge` | Merge LoRA adapter into base model |
-
-### Common Options
-
-| Option | Description |
-|--------|-------------|
-| `-c, --config` | Path to YAML configuration file |
-| `-m, --model` | HuggingFace model ID or local path |
-| `-d, --dataset` | Dataset name |
-| `-g, --gpus` | Comma-separated GPU IDs (default: 0) |
-| `-o, --output-dir` | Base output directory (default: outputs) |
-| `--dry-run` | Print config without running |
-| `--wandb-project` | W&B project name for logging |
-
-### Training Options
-
-| Option | Description |
-|--------|-------------|
-| `-e, --epochs` | Number of training epochs (default: 3) |
-| `-b, --batch-size` | Per-device batch size (default: 4) |
-| `--grad-accum` | Gradient accumulation steps (default: 4) |
-| `--lr` | Learning rate (default: 5e-5) |
-| `--cutoff-len` | Maximum sequence length (default: 8192) |
-| `--template` | Chat template name (default: gemma) |
-| `--bf16/--no-bf16` | Use bfloat16 precision (default: True) |
-
-### LoRA Options
-
-| Option | Description |
-|--------|-------------|
-| `--lora` | Enable LoRA fine-tuning |
-| `--lora-rank` | LoRA rank (default: 16) |
-| `--lora-alpha` | LoRA alpha (default: 32) |
-| `--lora-dropout` | LoRA dropout (default: 0.05) |
-
-### Override Syntax
-
-Override any config value:
 ```bash
-byol-train sft --config config.yaml --override epochs=10 learning_rate=1e-5
+conda activate byol_train
+export CUDA_HOME=$CONDA_PREFIX
+export HF_TOKEN="your_huggingface_token"  # Optional
 ```
 
-## LoRA Merging
+### Run Training
 
-After LoRA training, merge the adapter into the base model:
+```bash
+# CPT (auto-loads configs/cpt.yaml)
+byol-train cpt --gpus 0,1
+
+# CPT with overrides
+byol-train cpt \
+  --model google/gemma-3-4b-pt \
+  --dataset chichewa_cpt \
+  --gpus 2,3 \
+  --epochs 3 \
+  --batch-size 1 \
+  --grad-accum 256 \
+  --lr 1e-5
+
+# SFT with LoRA
+byol-train sft --model google/gemma-3-4b-it --dataset alpaca --lora --lora-rank 64
+
+# DPO
+byol-train dpo --gpus 0,1,2,3
+
+# Dry run (preview only)
+byol-train sft --dry-run
+```
+
+### Merge LoRA
 
 ```bash
 byol-train merge \
@@ -152,52 +86,48 @@ byol-train merge \
   --output outputs/merged-model
 ```
 
-Or via Python:
-```python
-from byol_train import merge_lora
+---
 
-merge_lora(
-    base_model="google/gemma-3-4b-pt",
-    adapter_path="outputs/sft-lora/",
-    output_dir="outputs/merged-model/",
-)
-```
+## CLI Options
 
-## Project Structure
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-c, --config` | YAML config file | Auto-detected |
+| `-m, --model` | Model ID or path | - |
+| `-d, --dataset` | Dataset name | - |
+| `-g, --gpus` | GPU IDs | `0` |
+| `-e, --epochs` | Training epochs | `3` |
+| `-b, --batch-size` | Batch size | `4` |
+| `--grad-accum` | Gradient accumulation | `4` |
+| `--lr` | Learning rate | `5e-5` |
+| `--lora` | Enable LoRA | `False` |
+| `--dry-run` | Preview config | `False` |
 
-```
-train/
-├── byol_train/
-│   ├── __init__.py       # Package exports
-│   ├── cli.py            # CLI entry point
-│   ├── config.py         # Configuration dataclasses
-│   ├── constants.py      # Default values and constants
-│   ├── secrets.py        # HuggingFace/W&B token management
-│   ├── runner.py         # Training runner
-│   ├── merge.py          # LoRA merging utilities
-│   └── py.typed          # PEP 561 type marker
-├── configs/
-│   ├── cpt.yaml          # Continual pre-training config
-│   ├── sft.yaml          # Supervised fine-tuning config
-│   ├── dpo.yaml          # DPO config
-│   └── merge.yaml        # Merge config
-├── requirements.txt
-├── pyproject.toml
-└── README.md
-```
+---
 
-## Constants Reference
+## Configuration Files
 
-Default values are defined in `constants.py`:
+Pre-configured YAML files in `configs/`:
+- `cpt.yaml` - Continual pre-training
+- `sft.yaml` - Supervised fine-tuning  
+- `dpo.yaml` - Direct preference optimization
 
-| Constant | Value | Description |
-|----------|-------|-------------|
-| `DEFAULT_BATCH_SIZE` | 4 | Per-device batch size |
-| `DEFAULT_EPOCHS` | 3 | Training epochs |
-| `DEFAULT_LEARNING_RATE` | 5e-5 | Learning rate |
-| `DEFAULT_LORA_RANK` | 16 | LoRA rank |
-| `DEFAULT_LORA_ALPHA` | 32 | LoRA alpha |
-| `DEFAULT_CUTOFF_LEN` | 8192 | Max sequence length |
+DeepSpeed configs in `examples/deepspeed/`:
+- `ds_z2_config.json` - ZeRO Stage 2 (recommended)
+- `ds_z3_config.json` - ZeRO Stage 3 (max memory savings)
+
+---
+
+## Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| `token_type_ids required` | `pip install transformers==4.51.3` |
+| `CUDA_HOME does not exist` | `export CUDA_HOME=$CONDA_PREFIX` |
+| `--gpu not recognized` | Use `--gpus` (with 's') |
+| `OOM error` | Reduce `--batch-size`, increase `--grad-accum` |
+
+---
 
 ## License
 

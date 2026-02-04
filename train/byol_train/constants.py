@@ -1,7 +1,4 @@
-"""Constants for BYOL Training Framework.
-
-Centralizes all magic numbers and default values for maintainability.
-"""
+"""Constants and default values for BYOL Training Framework."""
 
 from __future__ import annotations
 
@@ -32,9 +29,16 @@ DEFAULT_MAX_LENGTH: int = 8192
 DEFAULT_CUTOFF_LEN: int = 8192
 
 # =============================================================================
+# Default Config Paths (relative to train/ directory)
+# =============================================================================
+DEFAULT_CONFIG_CPT: str = "configs/cpt.yaml"
+DEFAULT_CONFIG_SFT: str = "configs/sft.yaml"
+DEFAULT_CONFIG_DPO: str = "configs/dpo.yaml"
+
+# =============================================================================
 # Supported Values
 # =============================================================================
-SUPPORTED_STAGES: tuple[str, ...] = ("cpt", "sft", "dpo")
+SUPPORTED_STAGES: tuple[str, ...] = ("pt", "cpt", "sft", "dpo")
 SUPPORTED_DTYPES: tuple[str, ...] = ("bfloat16", "float16", "float32", "auto")
 SUPPORTED_MIX_STRATEGIES: tuple[str, ...] = ("concat", "interleave_under", "interleave_over")
 SUPPORTED_TEMPLATES: tuple[str, ...] = ("gemma", "llama3", "mistral", "qwen2", "default")

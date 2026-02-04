@@ -1,1 +1,4 @@
 eval/data/*.jsonl !text !filter !merge !diff
+*.jsonl filter=lfs diff=lfs merge=lfs -text
+train/data/pretrain/*.jsonl.gz filter=lfs diff=lfs merge=lfs -text
+train/data/instruct/*.jsonl.gz filter=lfs diff=lfs merge=lfs -text

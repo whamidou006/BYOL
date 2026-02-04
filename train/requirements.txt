@@ -1,11 +1,42 @@
-# LlamaFactory - installed from GitHub
-llamafactory @ git+https://github.com/hiyouga/LlamaFactory.git
+# =============================================================================
+# BYOL Train Requirements
+# =============================================================================
+# Installation order matters! Follow the README for proper setup.
+#
+# Quick Start:
+#   1. Install LlamaFactory first (see README)
+#   2. pip install -r requirements.txt
+#   3. pip install -e .
+#   4. pip install transformers==4.51.3  # Required for Gemma 3
+# =============================================================================
 
-# LlamaFactory metrics dependencies
-rouge-score
-nltk
-jieba
-sacrebleu
-
-# BYOL Train dependencies
+# -----------------------------------------------------------------------------
+# Core Dependencies
+# -----------------------------------------------------------------------------
 pyyaml>=6.0
+
+# Transformers version for Gemma 3 compatibility
+# transformers 5.0.0 has token_type_ids requirement that breaks Gemma 3 training
+transformers>=4.49.0,<4.52.0
+
+# -----------------------------------------------------------------------------
+# Optional: DeepSpeed (for distributed training)
+# -----------------------------------------------------------------------------
+# Requires CUDA toolkit to be installed first:
+#   conda install -c nvidia cuda-toolkit=12.8
+#   export CUDA_HOME=$CONDA_PREFIX
+#   pip install deepspeed
+#
+# deepspeed>=0.14.0  # Uncomment after CUDA toolkit is installed
+
+# -----------------------------------------------------------------------------
+# Optional: Weights & Biases (for experiment tracking)
+# -----------------------------------------------------------------------------
+# wandb>=0.16.0
+
+# -----------------------------------------------------------------------------
+# Development Dependencies (optional)
+# -----------------------------------------------------------------------------
+# mypy>=1.8.0
+# ruff>=0.2.0
+# pytest>=8.0.0

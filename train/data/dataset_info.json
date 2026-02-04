@@ -1,0 +1,44 @@
+{
+  "_comment": "Original dataset names: C6_chichewa_train, C8_maori_train (CPT), S5_chichewa_train, S5_maori_train (SFT)",
+  
+  "chichewa_cpt": {
+    "file_name": "pretrain/chichewa_cpt.jsonl",
+    "columns": {
+      "prompt": "text"
+    }
+  },
+  "maori_cpt": {
+    "file_name": "pretrain/maori_cpt.jsonl",
+    "columns": {
+      "prompt": "text"
+    }
+  },
+  "maori_sft": {
+    "file_name": "instruct/maori_sft.jsonl",
+    "formatting": "sharegpt",
+    "columns": {
+      "messages": "messages"
+    },
+    "tags": {
+      "role_tag": "role",
+      "content_tag": "content",
+      "user_tag": "user",
+      "assistant_tag": "assistant",
+      "system_tag": "system"
+    }
+  },
+  "chichewa_sft": {
+    "file_name": "instruct/chichewa_sft.jsonl",
+    "formatting": "sharegpt",
+    "columns": {
+      "messages": "messages"
+    },
+    "tags": {
+      "role_tag": "role",
+      "content_tag": "content",
+      "user_tag": "user",
+      "assistant_tag": "assistant",
+      "system_tag": "system"
+    }
+  }
+}

@@ -1,13 +1,4 @@
-"""Command-line interface for BYOL Training Framework.
-
-This module provides the CLI entry point for running training jobs.
-Supports CPT, SFT, DPO stages with LoRA fine-tuning.
-
-Usage:
-    byol-train cpt --config config.yaml
-    byol-train sft --model meta-llama/Llama-3-8B --dataset alpaca
-    byol-train merge --base-model ./model --adapter ./lora --output ./merged
-"""
+"""CLI entry point for byol-train command."""
 
 from __future__ import annotations
 
@@ -20,6 +11,9 @@ from typing import Any, Dict, List, Optional
 from .config import LoraConfig, TrainConfig
 from .constants import (
     DEFAULT_BATCH_SIZE,
+    DEFAULT_CONFIG_CPT,
+    DEFAULT_CONFIG_DPO,
+    DEFAULT_CONFIG_SFT,
     DEFAULT_CUTOFF_LEN,
     DEFAULT_EPOCHS,
     DEFAULT_GRADIENT_ACCUMULATION_STEPS,
@@ -40,18 +34,7 @@ logger = logging.getLogger("byol-train")
 
 
 def parse_overrides(overrides: Optional[List[str]]) -> Dict[str, Any]:
-    """Parse key=value override arguments.
-
-    Args:
-        overrides: List of "key=value" strings from CLI.
-
-    Returns:
-        Dictionary of parsed overrides with appropriate types.
-
-    Example:
-        >>> parse_overrides(["epochs=10", "learning_rate=1e-5"])
-        {'epochs': 10, 'learning_rate': 1e-05}
-    """
+    """Parse key=value override arguments into typed dictionary."""
     if not overrides:
         return {}
 
@@ -80,15 +63,12 @@ def parse_overrides(overrides: Optional[List[str]]) -> Dict[str, Any]:
 
 
 def create_parser() -> argparse.ArgumentParser:
-    """Create the argument parser with all subcommands.
-
-    Returns:
-        Configured ArgumentParser instance.
-    """
+    """Create argument parser with all subcommands."""
     parser = argparse.ArgumentParser(
         prog="byol-train",
         description="BYOL Training Framework - LlamaFactory wrapper with best practices",
         formatter_class=argparse.RawDescriptionHelpFormatter,
+        allow_abbrev=False,  # Disable prefix matching - require exact argument names
         epilog="""
 Examples:
   # Train with config file
@@ -249,6 +229,7 @@ Examples:
         "cpt",
         help="Continual Pre-Training",
         description="Run continual pre-training on unlabeled text data",
+        allow_abbrev=False,
     )
     add_common_args(cpt_parser)
 
@@ -257,6 +238,7 @@ Examples:
         "sft",
         help="Supervised Fine-Tuning",
         description="Run supervised fine-tuning on instruction data",
+        allow_abbrev=False,
     )
     add_common_args(sft_parser)
 
@@ -265,6 +247,7 @@ Examples:
         "dpo",
         help="Direct Preference Optimization",
         description="Run DPO training on preference data",
+        allow_abbrev=False,
     )
     add_common_args(dpo_parser)
 
@@ -273,6 +256,7 @@ Examples:
         "merge",
         help="Merge LoRA adapter into base model",
         description="Merge a trained LoRA adapter into the base model",
+        allow_abbrev=False,
     )
     merge_parser.add_argument(
         "--base-model",
@@ -308,19 +292,53 @@ Examples:
 
 
 def run_training(args: argparse.Namespace) -> int:
-    """Run a training job from CLI arguments.
-
-    Args:
-        args: Parsed command-line arguments.
-
-    Returns:
-        Exit code (0 for success, 1 for failure).
-    """
+    """Run training job from CLI arguments. Returns exit code."""
+    # Determine config file path
+    config_path = args.config
+    if not config_path:
+        # Try to load default config for the stage
+        default_configs = {
+            "cpt": DEFAULT_CONFIG_CPT,
+            "sft": DEFAULT_CONFIG_SFT,
+            "dpo": DEFAULT_CONFIG_DPO,
+        }
+        default_config = default_configs.get(args.stage)
+        if default_config:
+            # Look for config in train/ directory
+            train_dir = Path(__file__).parent.parent
+            default_path = train_dir / default_config
+            if default_path.exists():
+                config_path = str(default_path)
+                logger.info(f"Using default config: {config_path}")
+    
     # Load from config file or build from CLI args
-    if args.config:
-        config = TrainConfig.from_yaml(args.config)
+    if config_path:
+        config = TrainConfig.from_yaml(config_path)
         # Override stage from subcommand
         config.stage = args.stage
+        
+        # Apply ALL CLI overrides on top of config file values
+        # CLI args always take precedence when provided
+        if args.model:
+            config.model_name_or_path = args.model
+        if args.dataset:
+            config.dataset = args.dataset
+        # Always apply these CLI args (they override yaml values)
+        config.gpus = args.gpus
+        config.epochs = args.epochs
+        config.batch_size = args.batch_size
+        config.gradient_accumulation_steps = args.grad_accum
+        config.learning_rate = args.learning_rate
+        config.cutoff_len = args.cutoff_len
+        config.template = args.template
+        if args.wandb_project:
+            config.wandb_project = args.wandb_project
+        if args.lora:
+            config.lora = LoraConfig(
+                rank=args.lora_rank,
+                alpha=args.lora_alpha,
+                dropout=args.lora_dropout,
+            )
     else:
         if not args.model:
             logger.error("Either --config or --model must be specified")
@@ -367,14 +385,7 @@ def run_training(args: argparse.Namespace) -> int:
 
 
 def run_merge(args: argparse.Namespace) -> int:
-    """Run LoRA merge from CLI arguments.
-
-    Args:
-        args: Parsed command-line arguments.
-
-    Returns:
-        Exit code (0 for success, 1 for failure).
-    """
+    """Run LoRA merge from CLI arguments. Returns exit code."""
     from .merge import merge_lora
 
     success = merge_lora(
@@ -389,14 +400,7 @@ def run_merge(args: argparse.Namespace) -> int:
 
 
 def main(args: Optional[List[str]] = None) -> int:
-    """Main entry point for the CLI.
-
-    Args:
-        args: Optional list of arguments (defaults to sys.argv).
-
-    Returns:
-        Exit code (0 for success, 1 for failure).
-    """
+    """Main CLI entry point."""
     parser = create_parser()
     parsed = parser.parse_args(args)
 

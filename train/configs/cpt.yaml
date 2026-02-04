@@ -1,90 +1,67 @@
+# =============================================================================
+# BYOL CPT (Continual Pre-Training) Configuration
+# =============================================================================
+# Available datasets: chichewa_cpt, maori_cpt
+# Available models: google/gemma-2-2b, google/gemma-2-9b, google/gemma-3-1b-pt, google/gemma-3-4b-pt
+# =============================================================================
+
 ### Model Configuration ###
-model_name_or_path: google/gemma-3-1b-pt
+model_name_or_path: google/gemma-3-4b-pt
 
-### Training Configuration ###
+### Training Stage ###
+# LlamaFactory stage: pt (pre-training)
 stage: pt
-train_on_prompt: false
-packing: true
-
-#enable_kd: false  # Set to false to disable KD
+do_train: true
+do_eval: false
 
 ### Dataset Configuration ###
-dataset: fineweb2_dataset_mri_train
-eval_dataset: fineweb2_dataset_mri_test
+dataset: chichewa_cpt
 cutoff_len: 4096
-
-### Optional Dataset Mixing (uncomment when needed) ###
-# For multiple datasets with custom ratios:
-# dataset: "fineweb2_dataset_mri_train,fineweb2_dataset_swahili_train,aya_swahili_hybrid_1M"
-# mix_strategy: "interleave_over"  # Options: concat, interleave_under, interleave_over
-# interleave_probs: "0.909,0.091"  # Probabilities to achieve sum total (11k samples)
-# seed: 42  # For reproducible mixing
+packing: true
+train_on_prompt: false
 
 ### Output Configuration ###
-output_dir: outputs/gemma-3-4b-fineweb2-maori-pretrain-lora-64-epochs-4
+output_dir: outputs/cpt
 
 ### Training Hyperparameters ###
-#batch_size: 512  # Effective batch size per GPU (gradient_accumulation_steps = batch_size / per_device_train_batch_size)
 per_device_train_batch_size: 2
 per_device_eval_batch_size: 2
 gradient_accumulation_steps: 256
 learning_rate: 1.0e-5
-lr_scheduler_type: cosine_with_min_lr
-lr_scheduler_kwargs:
-  min_lr_rate: 0.1
+num_train_epochs: 3
+lr_scheduler_type: cosine
 warmup_ratio: 0.03
-num_train_epochs: 4
+max_grad_norm: 1.0
+weight_decay: 0.01
 
-### DeepSpeed Configuration ###
-#deepspeed: examples/deepspeed/ds_z2_config.json
+### DeepSpeed Configuration (optional) ###
+deepspeed: /home/whamidouche/ssdprivate/BYOL/train/examples/deepspeed/ds_z2_config.json
 
 ### Precision and Optimization ###
 bf16: true
-tf32: true
 gradient_checkpointing: true
 
 ### Logging and Saving ###
-plot_loss: true
-eval_strategy: steps
-save_strategy: steps
-logging_steps: 5
-eval_steps: 20
-save_steps: 100
-save_total_limit: 10
-logging_first_step: true
-logging_nan_inf_filter: false
-save_only_model: false
-
-
-### Model Selection ###
-load_best_model_at_end: true
-metric_for_best_model: loss
-greater_is_better: false
-
-#resume_from_checkpoint: /home/whamidouche/ssdprivate/git-local/low-resource-llm.pipeline/multilingual-llm-posttrain/outputs/cpt-multilingual-llm-posttrain-20250811_071011-fineweb_2_mri_ny_mixture-lora-64/checkpoint-6000/
-
-
-### Training Control ###
-do_train: true
-do_eval: true
-resume_from_checkpoint: false
-overwrite_output_dir: true
+logging_steps: 10
+save_steps: 500
+save_total_limit: 3
 
 ### Other Settings ###
+seed: 42
 trust_remote_code: true
 dataloader_num_workers: 4
-dataloader_pin_memory: true
-max_samples: null  # Set to null for streaming (no limit)
-preprocessing_num_workers: 4  # Number of processes for data preprocessing
+overwrite_output_dir: true
 
-### Reporting ###
-report_to: wandb
-run_name: gemma-3-4b-cpt-maori
+### Optional: Weights & Biases ###
+# report_to: wandb
+# run_name: gemma-4b-cpt-chichewa
 
-### Optional Settings (uncomment when needed) ###
-seed: 42  # Uncomment for reproducible training and dataset mixing
-# fp16: false  # Use bf16 instead
-# push_to_hub: false
-# hub_model_id: username/model-name
-# hub_strategy: every_save
-# hub_token: your_token_here
+### Optional: Resume Training ###
+# resume_from_checkpoint: outputs/cpt/checkpoint-1000
+
+### Optional: LoRA (uncomment to enable) ###
+# finetuning_type: lora
+# lora_rank: 64
+# lora_alpha: 128
+# lora_dropout: 0.05
+# lora_target: all

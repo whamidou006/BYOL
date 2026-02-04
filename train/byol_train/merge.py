@@ -1,35 +1,4 @@
-"""Model merging utilities for BYOL Training.
-
-Supports multiple merge strategies:
-1. Simple LoRA merge: base + lora_adapter
-2. LlamaFactory export: Uses llamafactory-cli for LoRA→full model
-3. Delta merge: instruct + α*(fine_tuned - base)
-4. General 4-model merge: C + β*(B-A) + (1-β)*(D-C)
-5. General LoRA merge: A + β*(B-A) + (1-β)*lora_adapter
-
-Example usage:
-    # Simple LoRA merge
-    merge_lora_simple("google/gemma-3-4b-pt", "path/to/adapter", "output/")
-    
-    # Delta merge with instruct model
-    delta_merge(
-        base="google/gemma-3-4b-pt",
-        instruct="google/gemma-3-4b-it",
-        fine_tuned="path/to/cpt-model",
-        alpha=0.5,
-        output_dir="output/merged",
-    )
-    
-    # General 4-model merge
-    general_merge(
-        model_a="google/gemma-3-4b-pt",
-        model_b="google/gemma-3-4b-it",
-        model_c="path/to/model_c",
-        model_d="path/to/model_d",
-        beta=0.5,
-        output_dir="output/merged",
-    )
-"""
+"""Model merging utilities: LoRA merge, delta merge, and multi-model merge."""
 
 from __future__ import annotations
 
@@ -77,14 +46,7 @@ class MergeConfig:
     
     @classmethod
     def from_yaml(cls, path: Path) -> "MergeConfig":
-        """Load config from YAML file.
-        
-        Args:
-            path: Path to YAML configuration file.
-            
-        Returns:
-            MergeConfig instance.
-        """
+        """Load config from YAML file."""
         with open(path) as f:
             data = yaml.safe_load(f)
         return cls(
@@ -127,7 +89,7 @@ class MergeResult:
 # =============================================================================
 
 def _get_dtype(dtype: DType) -> torch.dtype:
-    """Convert string dtype to torch dtype."""
+    """Convert string dtype to torch.dtype."""
     dtype_map = {
         "float16": torch.float16,
         "bfloat16": torch.bfloat16,
@@ -150,16 +112,7 @@ def _load_model(
     device: str,
     dtype: torch.dtype,
 ) -> PreTrainedModel:
-    """Load a model with specified device and dtype.
-    
-    Args:
-        model_path: HuggingFace model ID or local path.
-        device: Device string (e.g., "cuda:0").
-        dtype: Torch dtype for model weights.
-        
-    Returns:
-        Loaded model.
-    """
+    """Load model with specified device and dtype."""
     return AutoModelForCausalLM.from_pretrained(
         model_path,
         torch_dtype=dtype,
@@ -178,16 +131,7 @@ def _merge_lora_into_model(
     lora_path: str,
     device: str,
 ) -> PreTrainedModel:
-    """Merge LoRA adapter weights into base model.
-    
-    Args:
-        base_model: Loaded base model.
-        lora_path: Path to LoRA adapter.
-        device: Device string.
-        
-    Returns:
-        Model with LoRA weights merged.
-    """
+    """Merge LoRA adapter weights into base model."""
     _check_peft_available()
     
     logger.info(f"Loading LoRA adapter from: {lora_path}")
@@ -207,16 +151,7 @@ def _save_model_and_metadata(
     dtype: torch.dtype,
     device: str,
 ) -> None:
-    """Save merged model, tokenizer, and metadata.
-    
-    Args:
-        model: Merged model to save.
-        tokenizer: Tokenizer to save.
-        output_dir: Output directory path.
-        merge_info: Merge metadata dictionary.
-        dtype: Model dtype used.
-        device: Device used for merging.
-    """
+    """Save merged model, tokenizer, and metadata."""
     os.makedirs(output_dir, exist_ok=True)
     
     logger.info(f"Saving merged model to {output_dir}...")
@@ -252,21 +187,7 @@ def merge_lora_llamafactory(
     export_size: int = 2,
     dry_run: bool = False,
 ) -> bool:
-    """Merge LoRA adapter into base model using LlamaFactory.
-    
-    This uses llamafactory-cli export command for the merge.
-    
-    Args:
-        base_model: Path to base model.
-        adapter_path: Path to LoRA adapter.
-        output_dir: Output directory for merged model.
-        template: Chat template name.
-        export_size: Number of shards.
-        dry_run: Print config without running.
-        
-    Returns:
-        True if successful, False otherwise.
-    """
+    """Merge LoRA adapter using LlamaFactory CLI."""
     config = MergeConfig(
         model_name_or_path=base_model,
         adapter_name_or_path=adapter_path,
@@ -329,25 +250,7 @@ def merge_lora_simple(
     dtype: DType = "float16",
     gpu: int = 0,
 ) -> MergeResult:
-    """Simple LoRA merge: base_model + lora_adapter.
-    
-    Args:
-        base_model: Base model path or HuggingFace ID.
-        lora_path: Path to LoRA adapter checkpoint.
-        output_dir: Output directory for merged model.
-        dtype: Model precision ("float16", "bfloat16", "float32").
-        gpu: GPU ID to use.
-        
-    Returns:
-        MergeResult with success status and metadata.
-        
-    Example:
-        result = merge_lora_simple(
-            base_model="google/gemma-3-4b-pt",
-            lora_path="outputs/lora-checkpoint/",
-            output_dir="outputs/merged/",
-        )
-    """
+    """Simple LoRA merge: base + lora_adapter."""
     _check_peft_available()
     
     device = f"cuda:{gpu}"
@@ -415,32 +318,7 @@ def delta_merge(
     dtype: DType = "float16",
     gpu: int = 0,
 ) -> MergeResult:
-    """Delta merge: instruct + alpha * (fine_tuned - base).
-    
-    Merges fine-tuning knowledge into an instruct model by computing
-    the delta between fine-tuned and base models.
-    
-    Args:
-        base: Base model path (e.g., google/gemma-3-4b-pt).
-        instruct: Instruct model path (e.g., google/gemma-3-4b-it).
-        fine_tuned: Fine-tuned model path.
-        alpha: Merge weight (0.0 = only instruct, 1.0 = full delta).
-        output_dir: Output directory for merged model.
-        dtype: Model precision.
-        gpu: GPU ID to use.
-        
-    Returns:
-        MergeResult with success status and metadata.
-        
-    Example:
-        result = delta_merge(
-            base="google/gemma-3-4b-pt",
-            instruct="google/gemma-3-4b-it",
-            fine_tuned="outputs/cpt-model/",
-            alpha=0.5,
-            output_dir="outputs/merged/",
-        )
-    """
+    """Delta merge: instruct + alpha * (fine_tuned - base)."""
     device = f"cuda:{gpu}"
     torch_dtype = _get_dtype(dtype)
     
@@ -541,23 +419,7 @@ def delta_merge_lora(
     dtype: DType = "float16",
     gpu: int = 0,
 ) -> MergeResult:
-    """Delta merge with LoRA: instruct + alpha * (lora_merged_base - base).
-    
-    Similar to delta_merge but uses a LoRA adapter instead of a full
-    fine-tuned model.
-    
-    Args:
-        base: Base model path (e.g., google/gemma-3-4b-pt).
-        instruct: Instruct model path (e.g., google/gemma-3-4b-it).
-        lora_path: Path to LoRA adapter.
-        alpha: Merge weight.
-        output_dir: Output directory for merged model.
-        dtype: Model precision.
-        gpu: GPU ID to use.
-        
-    Returns:
-        MergeResult with success status and metadata.
-    """
+    """Delta merge with LoRA: instruct + alpha * (lora_merged_base - base)."""
     _check_peft_available()
     
     device = f"cuda:{gpu}"
@@ -663,33 +525,7 @@ def general_merge(
     dtype: DType = "float16",
     gpu: int = 0,
 ) -> MergeResult:
-    """General 4-model merge: C + beta*(B-A) + (1-beta)*(D-C).
-    
-    Memory-optimized version that loads models in phases.
-    
-    Args:
-        model_a: Model A path.
-        model_b: Model B path.
-        model_c: Model C path (base for output).
-        model_d: Model D path.
-        beta: Merge weight for (B-A) vs (D-C) balance.
-        output_dir: Output directory for merged model.
-        dtype: Model precision.
-        gpu: GPU ID to use.
-        
-    Returns:
-        MergeResult with success status and metadata.
-        
-    Example:
-        result = general_merge(
-            model_a="google/gemma-3-4b-pt",
-            model_b="google/gemma-3-4b-it",
-            model_c="path/to/model_c",
-            model_d="path/to/model_d",
-            beta=0.5,
-            output_dir="outputs/merged/",
-        )
-    """
+    """General 4-model merge: C + beta*(B-A) + (1-beta)*(D-C)."""
     device = f"cuda:{gpu}"
     torch_dtype = _get_dtype(dtype)
     
@@ -800,22 +636,7 @@ def general_merge_lora(
     dtype: DType = "float16",
     gpu: int = 0,
 ) -> MergeResult:
-    """General LoRA merge: A + beta*(B-A) + (1-beta)*lora_adapter.
-    
-    Memory-optimized version that processes in phases.
-    
-    Args:
-        model_a: Model A path (base for LoRA and output).
-        model_b: Model B path.
-        lora_path: Path to LoRA adapter (trained on model A).
-        beta: Merge weight for (B-A) vs lora balance.
-        output_dir: Output directory for merged model.
-        dtype: Model precision.
-        gpu: GPU ID to use.
-        
-    Returns:
-        MergeResult with success status and metadata.
-    """
+    """General LoRA merge: A + beta*(B-A) + (1-beta)*lora_adapter."""
     _check_peft_available()
     
     device = f"cuda:{gpu}"

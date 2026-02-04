@@ -92,3 +92,17 @@ weights/
 # API Configuration (user-specific)
 # =============================================================================
 api/
+
+# Large uncompressed data files (use .gz versions)
+train/data/instruct/*.jsonl
+train/data/pretrain/*.jsonl
+
+# Large uncompressed data files (use .gz versions)
+train/data/instruct/*.jsonl
+train/data/pretrain/*.jsonl
+
+# Large data files (keep local only)
+train/data/instruct/*.jsonl
+train/data/instruct/*.jsonl.gz
+train/data/pretrain/*.jsonl
+train/data/pretrain/*.jsonl.gz

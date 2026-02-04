@@ -1,20 +1,7 @@
-"""BYOL Training Framework - LlamaFactory wrapper with best practices.
+"""BYOL Training Framework - LlamaFactory wrapper.
 
-This package provides a clean, typed interface for training LLMs using
-LlamaFactory as the backend. Supports multiple training stages and
-LoRA fine-tuning.
-
-Supported Training Stages:
-    - CPT (Continual Pre-Training): Train on unlabeled text
-    - SFT (Supervised Fine-Tuning): Train on instruction data
-    - DPO (Direct Preference Optimization): Train on preference data
-
-Features:
-    - Type-safe configuration with dataclasses
-    - Secure secrets management (HuggingFace, W&B)
-    - LoRA fine-tuning support
-    - Dataset mixing strategies
-    - CLI and programmatic interfaces
+A typed interface for training LLMs with LlamaFactory backend.
+Supports CPT, SFT, and DPO training stages.
 
 Example:
     >>> from byol_train import TrainConfig, TrainingRunner

@@ -1,8 +1,4 @@
-"""Training Runner for BYOL Framework.
-
-This module provides the main training orchestration using LlamaFactory CLI.
-Supports CPT, SFT, and DPO training stages with LoRA fine-tuning.
-"""
+"""Training runner - orchestrates LlamaFactory CLI execution."""
 
 from __future__ import annotations
 
@@ -30,15 +26,7 @@ logger = logging.getLogger("byol-train")
 
 @dataclass
 class TrainResult:
-    """Result of a training run.
-
-    Attributes:
-        success: Whether training completed successfully.
-        output_dir: Path to the output directory containing model/adapter.
-        error: Error message if training failed, None otherwise.
-        duration_seconds: Total training time in seconds.
-        config_path: Path to the config file used for training.
-    """
+    """Result of a training run."""
 
     success: bool
     output_dir: str
@@ -48,42 +36,16 @@ class TrainResult:
 
 
 class TrainingRunner:
-    """Main training runner using LlamaFactory CLI.
-
-    This class handles the full training pipeline:
-    1. Environment setup (HF token, W&B, CUDA devices)
-    2. Output directory generation
-    3. Temporary config file creation
-    4. LlamaFactory CLI invocation
-    5. Cleanup and result reporting
-
-    Example:
-        >>> config = TrainConfig.from_yaml("train_config.yaml")
-        >>> runner = TrainingRunner(config)
-        >>> result = runner.run()
-        >>> if result.success:
-        ...     print(f"Model saved to: {result.output_dir}")
-    """
+    """Training runner that invokes LlamaFactory CLI."""
 
     def __init__(self, config: TrainConfig, dry_run: bool = False) -> None:
-        """Initialize the training runner.
-
-        Args:
-            config: Training configuration.
-            dry_run: If True, print config without executing training.
-        """
+        """Initialize runner with config."""
         self.config = config
         self.dry_run = dry_run
         self._temp_config_path: Optional[str] = None
 
     def _setup_environment(self) -> None:
-        """Setup environment variables for training.
-
-        Configures:
-        - HuggingFace token (from secrets module)
-        - W&B API key (from secrets module)
-        - CUDA visible devices
-        """
+        """Configure environment variables for training."""
         setup_environment()
 
         if self.config.gpus:
@@ -91,13 +53,7 @@ class TrainingRunner:
             logger.info(f"🖥️  CUDA devices: {self.config.gpus}")
 
     def _generate_output_dir(self) -> str:
-        """Generate a unique output directory path.
-
-        Format: {base_output_dir}/{model_name}_{stage}_{timestamp}
-
-        Returns:
-            Absolute path to the output directory.
-        """
+        """Generate unique output directory path."""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         model_name = Path(self.config.model_name_or_path).name.replace("-", "_")
         dir_name = f"{model_name}_{self.config.stage}_{timestamp}"
@@ -106,14 +62,7 @@ class TrainingRunner:
         return str(output_dir.resolve())
 
     def _create_temp_config(self, output_dir: str) -> str:
-        """Create temporary YAML config for LlamaFactory.
-
-        Args:
-            output_dir: Output directory for this training run.
-
-        Returns:
-            Path to the temporary config file.
-        """
+        """Create temporary YAML config for LlamaFactory."""
         llama_config = self.config.to_llamafactory(output_dir)
 
         with tempfile.NamedTemporaryFile(
@@ -135,14 +84,7 @@ class TrainingRunner:
             logger.debug(f"Cleaned up temp config: {self._temp_config_path}")
 
     def run(self) -> TrainResult:
-        """Execute the training run.
-
-        Returns:
-            TrainResult with success status, output directory, and any errors.
-
-        Raises:
-            No exceptions are raised; errors are captured in TrainResult.
-        """
+        """Execute training and return result."""
         start_time = datetime.now()
         output_dir = self._generate_output_dir()
 

@@ -1,21 +1,4 @@
-"""Secrets management for BYOL Training Framework.
-
-This module handles secure loading of API keys and tokens.
-Supports loading from environment variables or a local secrets file.
-
-Usage:
-    from byol_train.secrets import get_hf_token, get_wandb_key
-
-    # Get tokens (returns None if not found)
-    hf_token = get_hf_token()
-    wandb_key = get_wandb_key()
-
-To configure secrets, either:
-1. Set environment variables: HF_TOKEN, WANDB_API_KEY
-2. Create a secrets_local.py file (gitignored) with:
-   HF_TOKEN = "your-token"
-   WANDB_API_KEY = "your-key"
-"""
+"""Secrets management - load API keys from environment or local file."""
 
 from __future__ import annotations
 
@@ -55,15 +38,7 @@ except ImportError:
 
 
 def get_hf_token() -> Optional[str]:
-    """Get HuggingFace API token.
-
-    Checks in order:
-    1. Environment variable HF_TOKEN
-    2. Local secrets file (secrets_local.py)
-
-    Returns:
-        HuggingFace token if found, None otherwise.
-    """
+    """Get HuggingFace token from environment or secrets_local.py."""
     token = os.environ.get(ENV_HF_TOKEN) or _HF_TOKEN
     if not token:
         logger.warning(
@@ -74,37 +49,17 @@ def get_hf_token() -> Optional[str]:
 
 
 def get_wandb_key() -> Optional[str]:
-    """Get Weights & Biases API key.
-
-    Checks in order:
-    1. Environment variable WANDB_API_KEY
-    2. Local secrets file (secrets_local.py)
-
-    Returns:
-        W&B API key if found, None otherwise.
-    """
+    """Get W&B API key from environment or secrets_local.py."""
     return os.environ.get(ENV_WANDB_API_KEY) or _WANDB_API_KEY
 
 
 def get_wandb_project() -> Optional[str]:
-    """Get Weights & Biases project name.
-
-    Checks in order:
-    1. Environment variable WANDB_PROJECT
-    2. Local secrets file (secrets_local.py)
-
-    Returns:
-        W&B project name if found, None otherwise.
-    """
+    """Get W&B project name from environment or secrets_local.py."""
     return os.environ.get(ENV_WANDB_PROJECT) or _WANDB_PROJECT
 
 
 def setup_environment() -> None:
-    """Setup environment variables for training.
-
-    Loads tokens and keys into environment variables so they are
-    available to subprocess calls (e.g., LlamaFactory CLI).
-    """
+    """Load tokens into environment variables for subprocess calls."""
     hf_token = get_hf_token()
     if hf_token:
         os.environ[ENV_HF_TOKEN] = hf_token
@@ -122,15 +77,7 @@ def setup_environment() -> None:
 
 
 def mask_token(token: Optional[str], visible_chars: int = 4) -> str:
-    """Mask a token for safe logging.
-
-    Args:
-        token: The token to mask.
-        visible_chars: Number of characters to show at start/end.
-
-    Returns:
-        Masked token string like "hf_Ab...xYz" or "<not set>".
-    """
+    """Mask token for safe logging (e.g., 'hf_Ab...xYz')."""
     if not token:
         return "<not set>"
     if len(token) <= visible_chars * 2:

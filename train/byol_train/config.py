@@ -1,8 +1,4 @@
-"""Configuration classes for BYOL Training Framework.
-
-This module defines the configuration dataclasses used throughout the training
-pipeline, including LoRA, dataset mixing, and main training configurations.
-"""
+"""Configuration dataclasses for training, LoRA, and dataset mixing."""
 
 from __future__ import annotations
 
@@ -33,26 +29,12 @@ from .constants import (
 
 
 def _is_power_of_2(n: int) -> bool:
-    """Check if a number is a power of 2.
-
-    Args:
-        n: The number to check.
-
-    Returns:
-        True if n is a power of 2, False otherwise.
-    """
+    """Check if n is a power of 2."""
     return n > 0 and (n & (n - 1)) == 0
 
 
 def _next_power_of_2(n: int) -> int:
-    """Find the next power of 2 greater than or equal to n.
-
-    Args:
-        n: The input number.
-
-    Returns:
-        The smallest power of 2 >= n.
-    """
+    """Find the smallest power of 2 >= n."""
     if n <= 0:
         return 1
     n -= 1
@@ -66,17 +48,7 @@ def _next_power_of_2(n: int) -> int:
 
 @dataclass
 class LoraConfig:
-    """Configuration for LoRA (Low-Rank Adaptation) fine-tuning.
-
-    LoRA enables efficient fine-tuning by adding trainable low-rank matrices
-    to transformer layers instead of updating all weights.
-
-    Attributes:
-        rank: Rank of the low-rank matrices (higher = more capacity).
-        alpha: Scaling factor for LoRA updates (typically 2x rank).
-        dropout: Dropout probability for regularization.
-        target_modules: List of module names to apply LoRA to.
-    """
+    """LoRA (Low-Rank Adaptation) configuration."""
 
     rank: int = DEFAULT_LORA_RANK
     alpha: int = DEFAULT_LORA_ALPHA
@@ -110,18 +82,7 @@ class LoraConfig:
 
 @dataclass
 class DatasetMixConfig:
-    """Configuration for dataset mixing strategies.
-
-    Supports combining multiple datasets with different strategies:
-    - concat: Simple concatenation
-    - interleave_under: Under-sampling to smallest dataset
-    - interleave_over: Over-sampling to largest dataset
-
-    Attributes:
-        datasets: List of dataset names to mix.
-        strategy: Mixing strategy to use.
-        probabilities: Optional sampling probabilities for each dataset.
-    """
+    """Dataset mixing configuration: concat, interleave_under, interleave_over."""
 
     datasets: List[str] = field(default_factory=list)
     strategy: str = "concat"
@@ -146,31 +107,7 @@ class DatasetMixConfig:
 
 @dataclass
 class TrainConfig:
-    """Main training configuration for BYOL.
-
-    This is the primary configuration class that aggregates all training
-    parameters including model, data, optimization, and LoRA settings.
-
-    Attributes:
-        model_name_or_path: HuggingFace model ID or local path.
-        stage: Training stage (cpt, sft, dpo).
-        dataset: Dataset name or comma-separated list.
-        output_dir: Base directory for outputs.
-        epochs: Number of training epochs.
-        batch_size: Per-device training batch size.
-        gradient_accumulation_steps: Steps to accumulate before update.
-        learning_rate: Initial learning rate.
-        warmup_ratio: Fraction of steps for warmup.
-        max_grad_norm: Maximum gradient norm for clipping.
-        weight_decay: Weight decay coefficient.
-        cutoff_len: Maximum sequence length.
-        template: Chat template name.
-        gpus: Comma-separated GPU device IDs.
-        bf16: Whether to use bfloat16 precision.
-        lora: Optional LoRA configuration.
-        dataset_mix: Optional dataset mixing configuration.
-        wandb_project: W&B project name for logging.
-    """
+    """Main training configuration aggregating model, data, and optimization settings."""
 
     # Model
     model_name_or_path: str = ""
@@ -201,6 +138,9 @@ class TrainConfig:
 
     # Logging
     wandb_project: Optional[str] = None
+
+    # Passthrough: Extra YAML fields passed directly to LlamaFactory
+    passthrough_args: Optional[Dict[str, Any]] = None
 
     def __post_init__(self) -> None:
         """Validate training configuration."""
@@ -254,6 +194,17 @@ class TrainConfig:
         mix_data = data.get("dataset_mix")
         dataset_mix = DatasetMixConfig(**mix_data) if mix_data else None
 
+        # Capture all extra YAML fields not handled by TrainConfig
+        known_keys = {
+            "model_name_or_path", "stage", "dataset", "output_dir", "epochs",
+            "batch_size", "gradient_accumulation_steps", "learning_rate",
+            "warmup_ratio", "max_grad_norm", "weight_decay", "cutoff_len",
+            "template", "gpus", "bf16", "lora", "dataset_mix", "wandb_project",
+            # Also ignore these as they map to other fields
+            "num_train_epochs", "per_device_train_batch_size",
+        }
+        passthrough_args = {k: v for k, v in data.items() if k not in known_keys}
+
         return cls(
             model_name_or_path=data.get("model_name_or_path", ""),
             stage=data.get("stage", "sft"),
@@ -275,6 +226,7 @@ class TrainConfig:
             lora=lora,
             dataset_mix=dataset_mix,
             wandb_project=data.get("wandb_project"),
+            passthrough_args=passthrough_args if passthrough_args else None,
         )
 
     def to_yaml(self, path: Union[str, Path]) -> None:
@@ -376,5 +328,9 @@ class TrainConfig:
         if self.wandb_project:
             config["report_to"] = "wandb"
             config["run_name"] = f"{Path(self.model_name_or_path).name}_{self.stage}"
+
+        # Add passthrough args (extra YAML fields passed directly to LlamaFactory)
+        if self.passthrough_args:
+            config.update(self.passthrough_args)
 
         return config
