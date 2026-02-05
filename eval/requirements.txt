@@ -21,3 +21,7 @@ azure-keyvault-secrets>=4.7.0
 azure-ai-inference>=1.0.0b9
 openai>=1.0.0
 requests>=2.28.0
+
+# IFEval dependencies
+langdetect>=1.0.9
+immutabledict>=4.2.0

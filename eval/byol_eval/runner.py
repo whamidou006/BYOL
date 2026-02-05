@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from .config import EvalConfig, ModelConfig, TaskConfig
-from .constants import STATUS_FAILED, STATUS_ICONS, STATUS_SKIPPED, STATUS_SUCCESS
+from .constants import STATUS_FAILED, STATUS_ICONS, STATUS_SKIPPED, STATUS_SUCCESS, UNSAFE_TASKS
 from .secrets import setup_hf_environment
 
 logger = logging.getLogger("byol-eval")
@@ -116,6 +116,11 @@ class EvaluationRunner:
         # This is required for instruct model evaluation
         if task.apply_chat_template or self.config.apply_chat_template:
             cmd.append("--apply_chat_template")
+        
+        # Confirm unsafe code execution for tasks like humaneval
+        task_names = {t.strip().lower() for t in task.name.split(",")}
+        if task_names & UNSAFE_TASKS:
+            cmd.append("--confirm_run_unsafe_code")
         
         return cmd
     

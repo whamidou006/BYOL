@@ -50,3 +50,14 @@ STATUS_ICONS = {
 # =============================================================================
 DEFAULT_TASKS_PATH = "eval/tasks"
 DEFAULT_DATASETS_PATH = "/home/whamidouche/ssdprivate/datasets/evals"
+
+# =============================================================================
+# Unsafe Tasks (require code execution confirmation)
+# =============================================================================
+UNSAFE_TASKS = frozenset({
+    "humaneval",
+    "humaneval_instruct",
+    "humaneval_plus",
+    "mbpp",
+    "mbpp_plus",
+})

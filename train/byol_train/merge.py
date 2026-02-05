@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Literal, Optional, Tuple, Union
+from typing import Any, Dict, Literal, Optional
 
 import torch
 import yaml
@@ -25,7 +25,6 @@ logger = logging.getLogger("byol-train")
 
 # Type aliases
 DType = Literal["float16", "bfloat16", "float32"]
-ModelType = PreTrainedModel
 
 
 # =============================================================================
@@ -96,6 +95,15 @@ def _get_dtype(dtype: DType) -> torch.dtype:
         "float32": torch.float32,
     }
     return dtype_map.get(dtype, torch.float16)
+
+
+def _log_merge_banner(title: str, **kwargs: Any) -> None:
+    """Log a formatted merge operation banner."""
+    logger.info("=" * 60)
+    logger.info(title)
+    for key, value in kwargs.items():
+        logger.info(f"  {key}: {value}")
+    logger.info("=" * 60)
 
 
 def _check_peft_available() -> None:
@@ -196,12 +204,10 @@ def merge_lora_llamafactory(
         export_size=export_size,
     )
     
-    logger.info("=" * 60)
-    logger.info("Merging LoRA adapter (LlamaFactory)")
-    logger.info(f"  Base model: {base_model}")
-    logger.info(f"  Adapter: {adapter_path}")
-    logger.info(f"  Output: {output_dir}")
-    logger.info("=" * 60)
+    _log_merge_banner(
+        "Merging LoRA adapter (LlamaFactory)",
+        **{"Base model": base_model, "Adapter": adapter_path, "Output": output_dir}
+    )
     
     # Write temp config
     fd, temp_path = tempfile.mkstemp(suffix=".yaml", prefix="merge_")
@@ -255,14 +261,12 @@ def merge_lora_simple(
     
     device = f"cuda:{gpu}"
     torch_dtype = _get_dtype(dtype)
+    formula = "merged = base + lora_adapter"
     
-    logger.info("=" * 60)
-    logger.info("Simple LoRA Merge")
-    logger.info(f"  Base model: {base_model}")
-    logger.info(f"  LoRA adapter: {lora_path}")
-    logger.info(f"  Formula: merged = base + lora_adapter")
-    logger.info(f"  Output: {output_dir}")
-    logger.info("=" * 60)
+    _log_merge_banner(
+        "Simple LoRA Merge",
+        **{"Base model": base_model, "LoRA adapter": lora_path, "Formula": formula, "Output": output_dir}
+    )
     
     try:
         # Load tokenizer and base model
@@ -277,7 +281,7 @@ def merge_lora_simple(
             "merge_type": "simple_lora",
             "base_model": base_model,
             "lora_adapter": lora_path,
-            "formula": "merged = base + lora_adapter",
+            "formula": formula,
         }
         _save_model_and_metadata(
             merged_model, tokenizer, output_dir, merge_info, torch_dtype, device
@@ -289,7 +293,7 @@ def merge_lora_simple(
             success=True,
             output_dir=output_dir,
             merge_type="simple_lora",
-            formula="merged = base + lora_adapter",
+            formula=formula,
             metadata=merge_info,
         )
         
@@ -299,7 +303,7 @@ def merge_lora_simple(
             success=False,
             output_dir=output_dir,
             merge_type="simple_lora",
-            formula="merged = base + lora_adapter",
+            formula=formula,
             metadata={},
             error=str(e),
         )
@@ -321,18 +325,13 @@ def delta_merge(
     """Delta merge: instruct + alpha * (fine_tuned - base)."""
     device = f"cuda:{gpu}"
     torch_dtype = _get_dtype(dtype)
-    
     formula = f"merged = instruct + {alpha} * (fine_tuned - base)"
     
-    logger.info("=" * 60)
-    logger.info("Delta Merge (Full Models)")
-    logger.info(f"  Base model: {base}")
-    logger.info(f"  Instruct model: {instruct}")
-    logger.info(f"  Fine-tuned model: {fine_tuned}")
-    logger.info(f"  Alpha: {alpha}")
-    logger.info(f"  Formula: {formula}")
-    logger.info(f"  Output: {output_dir}")
-    logger.info("=" * 60)
+    _log_merge_banner(
+        "Delta Merge (Full Models)",
+        **{"Base model": base, "Instruct model": instruct, "Fine-tuned model": fine_tuned,
+           "Alpha": alpha, "Formula": formula, "Output": output_dir}
+    )
     
     try:
         # Load tokenizer from instruct model
@@ -424,18 +423,13 @@ def delta_merge_lora(
     
     device = f"cuda:{gpu}"
     torch_dtype = _get_dtype(dtype)
-    
     formula = f"merged = instruct + {alpha} * (lora_merged_base - base)"
     
-    logger.info("=" * 60)
-    logger.info("Delta Merge (LoRA)")
-    logger.info(f"  Base model: {base}")
-    logger.info(f"  Instruct model: {instruct}")
-    logger.info(f"  LoRA adapter: {lora_path}")
-    logger.info(f"  Alpha: {alpha}")
-    logger.info(f"  Formula: {formula}")
-    logger.info(f"  Output: {output_dir}")
-    logger.info("=" * 60)
+    _log_merge_banner(
+        "Delta Merge (LoRA)",
+        **{"Base model": base, "Instruct model": instruct, "LoRA adapter": lora_path,
+           "Alpha": alpha, "Formula": formula, "Output": output_dir}
+    )
     
     try:
         # Load tokenizer from instruct model
@@ -528,19 +522,13 @@ def general_merge(
     """General 4-model merge: C + beta*(B-A) + (1-beta)*(D-C)."""
     device = f"cuda:{gpu}"
     torch_dtype = _get_dtype(dtype)
-    
     formula = f"merged = C + {beta}*(B-A) + {1-beta}*(D-C)"
     
-    logger.info("=" * 60)
-    logger.info("General 4-Model Merge")
-    logger.info(f"  Model A: {model_a}")
-    logger.info(f"  Model B: {model_b}")
-    logger.info(f"  Model C: {model_c}")
-    logger.info(f"  Model D: {model_d}")
-    logger.info(f"  Beta: {beta}")
-    logger.info(f"  Formula: {formula}")
-    logger.info(f"  Output: {output_dir}")
-    logger.info("=" * 60)
+    _log_merge_banner(
+        "General 4-Model Merge",
+        **{"Model A": model_a, "Model B": model_b, "Model C": model_c, "Model D": model_d,
+           "Beta": beta, "Formula": formula, "Output": output_dir}
+    )
     
     try:
         # Load tokenizer from model C
@@ -641,18 +629,13 @@ def general_merge_lora(
     
     device = f"cuda:{gpu}"
     torch_dtype = _get_dtype(dtype)
-    
     formula = f"merged = A + {beta}*(B-A) + {1-beta}*lora_adapter"
     
-    logger.info("=" * 60)
-    logger.info("General LoRA Merge")
-    logger.info(f"  Model A: {model_a}")
-    logger.info(f"  Model B: {model_b}")
-    logger.info(f"  LoRA adapter: {lora_path}")
-    logger.info(f"  Beta: {beta}")
-    logger.info(f"  Formula: {formula}")
-    logger.info(f"  Output: {output_dir}")
-    logger.info("=" * 60)
+    _log_merge_banner(
+        "General LoRA Merge",
+        **{"Model A": model_a, "Model B": model_b, "LoRA adapter": lora_path,
+           "Beta": beta, "Formula": formula, "Output": output_dir}
+    )
     
     try:
         # Load tokenizer from model A

@@ -10,8 +10,8 @@ Supports **CPT** (Continual Pre-Training), **SFT** (Supervised Fine-Tuning), and
 
 ```bash
 # 1. Create conda environment
-conda create -n byol_train python=3.12 -y
-conda activate byol_train
+conda create -p ~/ssdprivate/conda_envs/byol_train python=3.12 -y
+conda activate ~/ssdprivate/conda_envs/byol_train
 
 # 2. Clone repository
 git clone https://github.com/your-org/BYOL.git
@@ -43,14 +43,6 @@ pip install deepspeed
 
 ## Usage
 
-### Set Environment
-
-```bash
-conda activate byol_train
-export CUDA_HOME=$CONDA_PREFIX
-export HF_TOKEN="your_huggingface_token"  # Optional
-```
-
 ### Run Training
 
 ```bash
@@ -80,10 +72,26 @@ byol-train sft --dry-run
 ### Merge LoRA
 
 ```bash
+# Basic merge (via LlamaFactory)
 byol-train merge \
   --base-model google/gemma-3-4b-pt \
   --adapter outputs/sft-lora/checkpoint-final \
   --output outputs/merged-model
+
+# Advanced merge options (via python -m)
+# Simple LoRA merge
+python -m byol_train.merge simple-lora \
+  --base google/gemma-3-4b-pt \
+  --lora outputs/lora-adapter \
+  --output outputs/merged
+
+# Delta merge: instruct + alpha*(fine_tuned - base)
+python -m byol_train.merge delta \
+  --base google/gemma-3-4b-pt \
+  --instruct google/gemma-3-4b-it \
+  --fine-tuned outputs/cpt-model \
+  --alpha 0.5 \
+  --output outputs/merged
 ```
 
 ---
